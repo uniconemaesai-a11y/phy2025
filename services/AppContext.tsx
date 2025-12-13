@@ -1,8 +1,13 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, PropsWithChildren } from 'react';
 import { User, Assignment, Score, StudentData, Role, Attendance, HealthRecord } from '../types';
+import { MOCK_USERS, MOCK_STUDENTS, INITIAL_ASSIGNMENTS, INITIAL_SCORES, INITIAL_ATTENDANCE } from '../constants';
 
 // *** Google Apps Script Web App URL ***
 const API_URL = 'https://script.google.com/macros/s/AKfycbwEz7qB2vwlu6tTVx-CJrs1yFBPwbefN1Xlo1TLuG7G_JxB0Vxwknfvuc8EBuGamw-X/exec'; 
+
+// *** Google Sheet Config for Direct Login ***
+const USERS_SPREADSHEET_ID = '192jkPyqJHzlvaTqsI_zYW1z6exjoLBopwAz3NbGyxvc';
+const USERS_SHEET_NAME = 'Users';
 
 interface AttendanceStats {
   present: number;
@@ -66,35 +71,35 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("API Error:", error);
-      return { status: 'error', message: 'การเชื่อมต่อขัดข้อง กรุณาลองใหม่' };
+      console.warn("API Connection Failed, switching to Mock Data mode for demo.");
+      return { status: 'mock_fallback' };
     }
   };
 
   const refreshData = async () => {
     setIsLoading(true);
     const res = await callApi('getData');
+    
     if (res.status === 'success') {
-      // Clean and Normalize Students Data
       const cleanStudents = (res.students || []).map((s: any) => ({
          ...s,
          gradeLevel: Number(s.gradeLevel),
          classroom: s.classroom ? String(s.classroom).trim() : ''
       }));
       setStudents(cleanStudents);
-
       setAssignments(res.assignments || []);
       setScores(res.scores || []);
-      
-      // Clean and Normalize Attendance Dates to YYYY-MM-DD
       const cleanAttendance = (res.attendance || []).map((a: any) => ({
          ...a,
          date: typeof a.date === 'string' ? a.date.split('T')[0] : a.date
       }));
       setAttendance(cleanAttendance);
-
-      // Set Health Records (if available from API, or init empty array if not yet impl on backend)
       setHealthRecords(res.healthRecords || []);
+    } else if (res.status === 'mock_fallback') {
+      if (students.length === 0) setStudents(MOCK_STUDENTS);
+      if (assignments.length === 0) setAssignments(INITIAL_ASSIGNMENTS);
+      if (scores.length === 0) setScores(INITIAL_SCORES);
+      if (attendance.length === 0) setAttendance(INITIAL_ATTENDANCE);
     }
     setIsLoading(false);
   };
@@ -107,20 +112,105 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     }
   }, []);
 
+  // Helper to fetch users directly from Google Sheet for Login
+  const fetchUsersFromSheet = async (): Promise<any[]> => {
+    const url = `https://docs.google.com/spreadsheets/d/${USERS_SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${USERS_SHEET_NAME}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Network response was not ok');
+      const text = await res.text();
+      // Parse Google Visualization API response
+      const jsonString = text.substring(47).slice(0, -2);
+      const json = JSON.parse(jsonString);
+      
+      return json.table.rows.map((row: any) => {
+        const c = row.c;
+        // Map Columns: 0:id, 1:username, 2:password, 3:name, 4:role, 5:gradeLevel, 6:classroom
+        return {
+          id: c[0]?.v ? String(c[0].v) : '',
+          username: c[1]?.v ? String(c[1].v) : '',
+          password: c[2]?.v ? String(c[2].v) : '',
+          name: c[3]?.v ? String(c[3].v) : '',
+          role: c[4]?.v === 'TEACHER' ? Role.TEACHER : Role.STUDENT,
+          gradeLevel: c[5]?.v ? Number(c[5].v) : undefined,
+          classroom: c[6]?.v ? String(c[6].v) : undefined,
+        };
+      });
+    } catch (err) {
+      console.warn('Failed to fetch users from sheet:', err);
+      return [];
+    }
+  };
+
   const login = async (username: string, password?: string, role: Role = Role.TEACHER) => {
     setIsLoading(true);
-    const res = await callApi('login', { username, password, role });
-    setIsLoading(false);
 
+    // 1. Try fetching from Google Sheet first
+    try {
+      const sheetUsers = await fetchUsersFromSheet();
+      if (sheetUsers.length > 0) {
+        const foundUser = sheetUsers.find(u => String(u.username) === String(username) && u.role === role);
+        
+        if (foundUser) {
+          let isValid = false;
+          if (role === Role.TEACHER) {
+             // Check password for teacher
+             if (String(foundUser.password) === String(password)) {
+               isValid = true;
+             }
+          } else {
+             // Student: No password needed
+             isValid = true;
+          }
+
+          if (isValid) {
+            const { password: _, ...userWithoutPassword } = foundUser;
+            setIsLoading(false);
+            setCurrentUser(userWithoutPassword);
+            localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+            refreshData();
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Sheet login error", e);
+    }
+
+    // 2. Fallback to API/Mock if Sheet login fails or user not found in Sheet
+    const res = await callApi('login', { username, password, role });
+    
     if (res.status === 'success') {
+      setIsLoading(false);
       setCurrentUser(res.user);
       localStorage.setItem('user', JSON.stringify(res.user));
       refreshData();
       return true;
-    } else {
-      alert(res.message || 'เข้าสู่ระบบไม่สำเร็จ');
-      return false;
+    } 
+    
+    if (res.status === 'mock_fallback' || res.status === 'error') {
+       const foundUser = MOCK_USERS.find(u => u.username === username && u.role === role);
+       if (foundUser) {
+         if (role === Role.TEACHER) {
+           if (password === '1234') {
+             setIsLoading(false);
+             setCurrentUser(foundUser);
+             localStorage.setItem('user', JSON.stringify(foundUser));
+             refreshData();
+             return true;
+           }
+         } else {
+           setIsLoading(false);
+           setCurrentUser(foundUser);
+           localStorage.setItem('user', JSON.stringify(foundUser));
+           refreshData();
+           return true;
+         }
+       }
     }
+
+    setIsLoading(false);
+    return false;
   };
 
   const logout = () => {
@@ -136,7 +226,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const addAssignment = async (assignment: Assignment) => {
     setAssignments(prev => [...prev, assignment]);
     await callApi('addAssignment', { payload: assignment });
-    refreshData();
   };
 
   const deleteAssignment = async (id: string) => {
@@ -154,7 +243,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       }
       return [...prev, newScore];
     });
-    // Send to backend without waiting (optimistic)
     callApi('updateScore', { payload: newScore });
   };
 
@@ -170,6 +258,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
 
   const updateStudent = async (student: StudentData) => {
     setStudents(prev => prev.map(s => s.id === student.id ? student : s));
+    await callApi('updateStudent', { payload: student });
   };
 
   const deleteStudent = async (id: string) => {
@@ -182,7 +271,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     const newRecord: Attendance = { id, studentId, date, status, reason };
     
     setAttendance(prev => {
-      // Clean previous record for this student on this day if exists
       const filtered = prev.filter(a => !(String(a.studentId) === String(studentId) && a.date === date));
       return [...filtered, newRecord];
     });
@@ -232,8 +320,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
 
   const updateHealthRecord = async (record: HealthRecord) => {
     setHealthRecords(prev => {
-      // Filter out existing record for this student to replace it (assuming 1 latest record per student for now, or append if history needed)
-      // For this implementation, we'll just keep a list. In a real app, we might check date.
       const existingIndex = prev.findIndex(r => r.studentId === record.studentId);
       if (existingIndex >= 0) {
         const updated = [...prev];
@@ -242,7 +328,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       }
       return [...prev, record];
     });
-    // Optimistic UI, then call API
     await callApi('updateHealthRecord', { payload: record });
   };
 

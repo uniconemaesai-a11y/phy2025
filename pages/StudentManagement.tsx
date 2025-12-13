@@ -300,7 +300,7 @@ export const StudentManagement = () => {
               <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800">
                 <p className="font-bold mb-1">คำแนะนำ:</p>
                 <p>วางข้อมูลรูปแบบ: <b>เลขที่ รหัสนักเรียน ชื่อ นามสกุล</b> (1 คนต่อ 1 บรรทัด)</p>
-                <p className="mt-1 text-xs text-blue-600">ตัวอย่าง:<br/>1 S001 เด็กชาย กอไก่ ใจดี<br/>2 S002 เด็กหญิง ขอไข่ ใฝ่เรียน</p>
+                <p className="mt-1 text-xs text-blue-600">ตัวอย่าง:<br/>1 1782 เด็กชาย กอไก่ ใจดี<br/>2 1788 เด็กหญิง ขอไข่ ใฝ่เรียน</p>
               </div>
               
               <div className="flex gap-4 items-center">

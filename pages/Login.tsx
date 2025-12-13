@@ -27,8 +27,7 @@ export const Login = () => {
     // Call async login
     const success = await login(username, role === Role.TEACHER ? password : '', role);
     if (!success) {
-      // Error is handled in AppContext/alert, but we can set local state too
-      setError('เข้าสู่ระบบไม่สำเร็จ ตรวจสอบข้อมูลอีกครั้ง');
+      setError(role === Role.TEACHER ? 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' : 'ไม่พบรหัสนักเรียนนี้ในระบบ');
     }
   };
 
@@ -70,7 +69,7 @@ export const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {role === Role.TEACHER ? 'ชื่อผู้ใช้ (Username)' : 'รหัสประจำตัวนักเรียน (Student ID)'}
+              {role === Role.TEACHER ? 'ชื่อผู้ใช้ (Username)' : 'เลขประจำตัวนักเรียน (Student ID)'}
             </label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -79,7 +78,7 @@ export const Login = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/50 focus:border-accent outline-none transition-all"
-                placeholder={role === Role.TEACHER ? "เช่น kai" : "เช่น S001"}
+                placeholder={role === Role.TEACHER ? "เช่น kai" : "ระบุเลขประจำตัว เช่น 1782"}
                 disabled={isLoading}
               />
             </div>
@@ -130,7 +129,7 @@ export const Login = () => {
 
         <div className="mt-8 text-center text-xs text-gray-400">
           <p>Teacher: kai / 1234</p>
-          <p>Student: ใส่รหัสนักเรียน (เช่น S001) ไม่ต้องใช้รหัสผ่าน</p>
+          <p>Student: ระบุเลขประจำตัวนักเรียน (เช่น 1782)</p>
         </div>
       </div>
     </div>
