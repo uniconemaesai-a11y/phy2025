@@ -19,8 +19,9 @@ export const ScoreRecording = () => {
     (filterClass === 'all' || s.classroom === filterClass)
   );
   
-  // Get unique classrooms for dropdown
-  const classrooms = Array.from(new Set(students.filter(s => s.gradeLevel === filterGrade).map(s => s.classroom))).sort();
+  // Get unique classrooms for dropdown and sort naturally (numeric aware)
+  const classrooms = Array.from(new Set(students.filter(s => s.gradeLevel === filterGrade).map(s => s.classroom)))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
     let numVal: number | null = null;
