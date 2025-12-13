@@ -9,6 +9,7 @@ import { ScoreRecording } from './pages/ScoreRecording';
 import { AttendanceRecording } from './pages/AttendanceRecording';
 import { StudentManagement } from './pages/StudentManagement';
 import { StudentPortal } from './pages/StudentPortal';
+import { HealthData } from './pages/HealthData';
 import { Role } from './types';
 
 // Protected Route Component
@@ -53,6 +54,11 @@ const AppRoutes = () => {
       <Route path="/teacher/attendance" element={
         <ProtectedRoute allowedRole={Role.TEACHER}>
           <AttendanceRecording />
+        </ProtectedRoute>
+      } />
+      <Route path="/teacher/health" element={
+        <ProtectedRoute allowedRole={Role.TEACHER}>
+          <HealthData />
         </ProtectedRoute>
       } />
       <Route path="/teacher/students" element={

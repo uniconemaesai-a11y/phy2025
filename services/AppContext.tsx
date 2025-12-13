@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, PropsWithChildren } from 'react';
-import { User, Assignment, Score, StudentData, Role, Attendance } from '../types';
+import { User, Assignment, Score, StudentData, Role, Attendance, HealthRecord } from '../types';
 
 // *** Google Apps Script Web App URL ***
 const API_URL = 'https://script.google.com/macros/s/AKfycbwEz7qB2vwlu6tTVx-CJrs1yFBPwbefN1Xlo1TLuG7G_JxB0Vxwknfvuc8EBuGamw-X/exec'; 
@@ -18,6 +18,7 @@ interface AppContextType {
   login: (username: string, password?: string, role?: Role) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
+  refreshData: () => Promise<void>;
   
   assignments: Assignment[];
   addAssignment: (assignment: Assignment) => Promise<void>;
@@ -37,6 +38,10 @@ interface AppContextType {
   markAttendanceBulk: (data: {studentId: string, date: string, status: 'present' | 'late' | 'leave' | 'missing', reason?: string}[]) => Promise<void>;
   getStudentAttendanceStats: (studentId: string) => AttendanceStats;
   getDailyAttendance: (date: string, classroom: string) => Attendance[];
+
+  healthRecords: HealthRecord[];
+  updateHealthRecord: (record: HealthRecord) => Promise<void>;
+  getLatestHealthRecord: (studentId: string) => HealthRecord | undefined;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -47,6 +52,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const [scores, setScores] = useState<Score[]>([]);
   const [students, setStudents] = useState<StudentData[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Helper to call API
@@ -86,6 +92,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
          date: typeof a.date === 'string' ? a.date.split('T')[0] : a.date
       }));
       setAttendance(cleanAttendance);
+
+      // Set Health Records (if available from API, or init empty array if not yet impl on backend)
+      setHealthRecords(res.healthRecords || []);
     }
     setIsLoading(false);
   };
@@ -121,6 +130,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     setStudents([]);
     setScores([]);
     setAttendance([]);
+    setHealthRecords([]);
   };
 
   const addAssignment = async (assignment: Assignment) => {
@@ -220,12 +230,33 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
      return attendance.filter(a => a.date === date && studentIds.includes(String(a.studentId)));
   };
 
+  const updateHealthRecord = async (record: HealthRecord) => {
+    setHealthRecords(prev => {
+      // Filter out existing record for this student to replace it (assuming 1 latest record per student for now, or append if history needed)
+      // For this implementation, we'll just keep a list. In a real app, we might check date.
+      const existingIndex = prev.findIndex(r => r.studentId === record.studentId);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = record;
+        return updated;
+      }
+      return [...prev, record];
+    });
+    // Optimistic UI, then call API
+    await callApi('updateHealthRecord', { payload: record });
+  };
+
+  const getLatestHealthRecord = (studentId: string) => {
+    return healthRecords.find(r => r.studentId === studentId);
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
       login,
       logout,
       isLoading,
+      refreshData,
       assignments,
       addAssignment,
       deleteAssignment,
@@ -240,7 +271,10 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       markAttendance,
       markAttendanceBulk,
       getStudentAttendanceStats,
-      getDailyAttendance
+      getDailyAttendance,
+      healthRecords,
+      updateHealthRecord,
+      getLatestHealthRecord
     }}>
       {children}
     </AppContext.Provider>

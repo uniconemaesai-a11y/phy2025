@@ -1,7 +1,7 @@
 import React, { PropsWithChildren } from 'react';
 import { useApp } from '../services/AppContext';
 import { Role } from '../types';
-import { LogOut, LayoutDashboard, ClipboardList, PenTool, User as UserIcon, Menu, X, Clock, Users } from 'lucide-react';
+import { LogOut, LayoutDashboard, ClipboardList, PenTool, User as UserIcon, Menu, X, Clock, Users, HeartPulse } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export const Layout = ({ children }: PropsWithChildren) => {
@@ -16,6 +16,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
     { name: 'จัดการชิ้นงาน', path: '/teacher/assignments', icon: ClipboardList },
     { name: 'บันทึกคะแนน', path: '/teacher/scores', icon: PenTool },
     { name: 'บันทึกเวลาเรียน', path: '/teacher/attendance', icon: Clock },
+    { name: 'ข้อมูลสุขภาพ', path: '/teacher/health', icon: HeartPulse },
     { name: 'จัดการนักเรียน', path: '/teacher/students', icon: Users },
   ];
 
@@ -28,9 +29,16 @@ export const Layout = ({ children }: PropsWithChildren) => {
 
   const NavContent = () => (
     <>
-      <div className="p-6">
-        <h2 className="text-2xl font-bold text-fg mb-1">Health & PE</h2>
-        <p className="text-sm text-gray-600 font-medium">Score System</p>
+      <div className="p-6 flex items-center gap-3">
+        <img 
+          src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" 
+          alt="Logo" 
+          className="w-10 h-10 object-contain drop-shadow-sm" 
+        />
+        <div>
+          <h2 className="text-xl font-bold text-fg leading-tight">Health & PE</h2>
+          <p className="text-xs text-gray-600 font-medium">Score System</p>
+        </div>
       </div>
       <nav className="flex-1 px-4 space-y-2">
         {links.map((link) => {
@@ -82,7 +90,10 @@ export const Layout = ({ children }: PropsWithChildren) => {
 
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 w-full bg-[#7FE5D8] z-50 border-b border-white/20 px-4 py-3 flex items-center justify-between shadow-sm">
-         <h2 className="text-xl font-bold text-fg">Health & PE</h2>
+         <div className="flex items-center gap-2">
+           <img src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" alt="Logo" className="w-8 h-8 object-contain" />
+           <h2 className="text-xl font-bold text-fg">Health & PE</h2>
+         </div>
          <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-700">
            <Menu size={24} />
          </button>

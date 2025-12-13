@@ -46,3 +46,13 @@ export interface Attendance {
   status: 'present' | 'late' | 'leave' | 'missing'; // มา, สาย, ลา, ขาด
   reason?: string;
 }
+
+export interface HealthRecord {
+  id: string;
+  studentId: string;
+  date: string; // YYYY-MM-DD
+  weight: number; // kg
+  height: number; // cm
+  bmi: number;
+  interpretation: 'ผอม' | 'สมส่วน' | 'ท้วม' | 'เริ่มอ้วน' | 'อ้วน';
+}

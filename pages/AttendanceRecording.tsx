@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
-import { Users, AlertTriangle, PieChart as PieChartIcon, X, Loader2, Check } from 'lucide-react';
+import { Users, AlertTriangle, PieChart as PieChartIcon, X, Loader2, Check, Save } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export const AttendanceRecording = () => {
-  const { students, attendance, markAttendance, markAttendanceBulk, getStudentAttendanceStats, isLoading } = useApp();
+  const { students, attendance, markAttendanceBulk, getStudentAttendanceStats, isLoading } = useApp();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedGrade, setSelectedGrade] = useState<5 | 6>(5);
   const [selectedClassroom, setSelectedClassroom] = useState('5/1');
   const [showStatsModal, setShowStatsModal] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, 'present' | 'late' | 'leave' | 'missing'>>({});
+
+  // Reset pending updates when context changes (date/class)
+  useEffect(() => {
+    setPendingUpdates({});
+  }, [selectedDate, selectedGrade, selectedClassroom]);
 
   // Filter students based on selection with Type Coercion for safety
   const currentStudents = students.filter(s => 
@@ -27,23 +33,43 @@ export const AttendanceRecording = () => {
   };
 
   const getStatus = (studentId: string) => {
+    // Check pending first
+    if (pendingUpdates[studentId]) return pendingUpdates[studentId];
+    // Then check database
     const record = attendance.find(a => String(a.studentId) === String(studentId) && a.date === selectedDate);
     return record?.status || 'unmarked';
   };
 
-  const handleMark = async (studentId: string, status: 'present' | 'late' | 'leave' | 'missing') => {
-    await markAttendance(studentId, selectedDate, status);
+  const handleMark = (studentId: string, status: 'present' | 'late' | 'leave' | 'missing') => {
+    setPendingUpdates(prev => ({
+      ...prev,
+      [studentId]: status
+    }));
   };
 
-  const markAll = async (status: 'present' | 'late' | 'leave' | 'missing') => {
+  const markAll = (status: 'present' | 'late' | 'leave' | 'missing') => {
     if (currentStudents.length === 0) return;
+    const updates: Record<string, 'present' | 'late' | 'leave' | 'missing'> = {};
+    currentStudents.forEach(s => {
+      updates[s.id] = status;
+    });
+    setPendingUpdates(prev => ({ ...prev, ...updates }));
+  };
+
+  const handleSave = async () => {
+    const updates = Object.entries(pendingUpdates);
+    if (updates.length === 0) return;
+
     setIsSaving(true);
-    const records = currentStudents.map(s => ({
-        studentId: s.id,
+    const records = updates.map(([studentId, status]) => ({
+        studentId,
         date: selectedDate,
-        status: status
+        status,
+        reason: ''
     }));
-    await markAttendanceBulk(records as any);
+    
+    await markAttendanceBulk(records);
+    setPendingUpdates({}); // Clear pending as they are now saved in context
     setIsSaving(false);
   };
 
@@ -53,7 +79,7 @@ export const AttendanceRecording = () => {
     return stats.attendanceRate < 80 && stats.totalDays > 0;
   });
 
-  // Calculate today's stats for the selected class
+  // Calculate today's stats for the selected class (including pending)
   const dailyStats = {
     present: currentStudents.filter(s => getStatus(s.id) === 'present').length,
     late: currentStudents.filter(s => getStatus(s.id) === 'late').length,
@@ -61,6 +87,8 @@ export const AttendanceRecording = () => {
     missing: currentStudents.filter(s => getStatus(s.id) === 'missing').length,
     total: currentStudents.length
   };
+
+  const hasUnsavedChanges = Object.keys(pendingUpdates).length > 0;
 
   // Data for individual donut chart
   const getChartData = (studentId: string) => {
@@ -193,14 +221,28 @@ export const AttendanceRecording = () => {
                   <p className="text-xs text-gray-500">วันที่ {new Date(selectedDate).toLocaleDateString('th-TH', { dateStyle: 'long' })}</p>
                </div>
                
-               <button 
-                 onClick={() => markAll('present')}
-                 disabled={isSaving || currentStudents.length === 0}
-                 className="flex items-center gap-2 bg-green-50 text-success hover:bg-green-100 px-4 py-2 rounded-xl transition-all font-bold border border-green-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
-               >
-                 {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Check size={18} />}
-                 {isSaving ? 'กำลังบันทึก...' : 'มาเรียนทั้งหมด'}
-               </button>
+               <div className="flex gap-2">
+                 <button 
+                   onClick={() => markAll('present')}
+                   disabled={isSaving || currentStudents.length === 0}
+                   className="flex items-center gap-2 bg-gray-50 text-gray-600 hover:bg-gray-100 px-4 py-2 rounded-xl transition-all font-bold border border-gray-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                 >
+                   <Check size={16} /> มาทั้งหมด
+                 </button>
+                 
+                 <button 
+                   onClick={handleSave}
+                   disabled={isSaving || !hasUnsavedChanges}
+                   className={`flex items-center gap-2 px-6 py-2 rounded-xl transition-all font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95 ${
+                     hasUnsavedChanges 
+                       ? 'bg-accent text-white hover:bg-orange-400 animate-pulse' 
+                       : 'bg-gray-200 text-gray-400'
+                   }`}
+                 >
+                   {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />}
+                   {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                 </button>
+               </div>
             </div>
             
             <div className="flex-1 overflow-y-auto pr-2 space-y-3">
@@ -213,8 +255,11 @@ export const AttendanceRecording = () => {
                 <>
                   {currentStudents.map(student => {
                     const currentStatus = getStatus(student.id);
+                    // Check if modified locally
+                    const isPending = !!pendingUpdates[student.id];
+
                     return (
-                      <div key={student.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-white border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all gap-4">
+                      <div key={student.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all gap-4 ${isPending ? 'bg-orange-50/30 border-orange-200' : 'bg-white border-gray-100 hover:border-gray-300 hover:shadow-md'}`}>
                         <div className="flex items-center gap-3">
                           <button 
                             onClick={() => setShowStatsModal(student.id)}
@@ -225,7 +270,10 @@ export const AttendanceRecording = () => {
                           </button>
                           <div>
                             <p className="font-bold text-gray-800">{student.name}</p>
-                            <p className="text-xs text-gray-400 font-mono">{student.studentId}</p>
+                            <p className="text-xs text-gray-400 font-mono flex items-center gap-2">
+                               {student.studentId}
+                               {isPending && <span className="text-[10px] text-orange-500 font-bold bg-orange-100 px-1 rounded">แก้ไข</span>}
+                            </p>
                           </div>
                         </div>
                         

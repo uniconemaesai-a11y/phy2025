@@ -36,9 +36,11 @@ export const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gr5/30 to-gr6/30 p-4 font-['Sarabun']">
       <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-white/50">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-tr from-gr5 to-gr6 rounded-2xl mx-auto mb-4 flex items-center justify-center text-white shadow-lg transform rotate-3">
-             <span className="font-['Mitr'] text-2xl font-bold">HP</span>
-          </div>
+          <img 
+            src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" 
+            alt="School Logo" 
+            className="w-28 h-28 mx-auto mb-4 drop-shadow-md hover:scale-105 transition-transform duration-300" 
+          />
           <h1 className="text-2xl font-bold text-gray-800 font-['Mitr']">ยินดีต้อนรับเข้าสู่ระบบ</h1>
           <p className="text-gray-500">ระบบบันทึกคะแนนสุขศึกษาและพลศึกษา</p>
         </div>
