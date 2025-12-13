@@ -86,27 +86,39 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
          let grade = Number(s.gradeLevel);
          let cls = s.classroom ? String(s.classroom).trim() : '';
 
-         // Fix: Check if classroom is converted to Date string by Google Sheets (e.g., "2024-05-01T...")
-         // This happens when inputs like "5/1" are interpreted as May 1st
-         if (cls.length > 10 && !isNaN(Date.parse(cls))) {
+         // Fix: Check if classroom is converted to Date string by Google Sheets
+         // Example: "2025-01-05T17:00:00.000Z" (UTC) -> Jan 6th (Thai Time) -> 6/1
+         if (cls.length > 5 && !isNaN(Date.parse(cls)) && (cls.includes('-') || cls.includes('T'))) {
             const date = new Date(cls);
-            // Use local components to reconstruct "Month/Day"
-            // "5/1" -> May 1st -> Month 5, Day 1
-            const month = date.getMonth() + 1;
             const day = date.getDate();
-            cls = `${month}/${day}`;
+            const month = date.getMonth() + 1;
+            
+            // Try to recover "Grade/Room" format
+            // Valid Grades are 5 and 6. Valid Rooms are typically 1-9.
+            
+            // Case 1: Day is Grade (5 or 6). e.g., 5 Jan -> 5/1
+            if ((day === 5 || day === 6) && month <= 12) {
+               cls = `${day}/${month}`;
+            }
+            // Case 2: Month is Grade (5 or 6). e.g., May 1 -> 5/1 (US format interpretation)
+            else if ((month === 5 || month === 6) && day <= 12) {
+               cls = `${month}/${day}`;
+            }
+            // If neither matches clearly, we keep original or it might be a real date (unlikely for a classroom field)
          }
 
          return {
             ...s,
+            studentId: String(s.studentId || ''), // FORCE STRING
             gradeLevel: grade,
             classroom: cls
          };
       });
       
-      // Sort students by ID or Name for consistency
+      // Sort students by Classroom then ID
       cleanStudents.sort((a: StudentData, b: StudentData) => {
-          return a.classroom.localeCompare(b.classroom) || a.studentId.localeCompare(b.studentId);
+          return String(a.classroom).localeCompare(String(b.classroom), undefined, { numeric: true }) || 
+                 String(a.studentId).localeCompare(String(b.studentId), undefined, { numeric: true });
       });
 
       setStudents(cleanStudents);
@@ -141,6 +153,8 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       // Clean Scores
       const cleanScores = (res.scores || []).map((s: any) => ({
         ...s,
+        assignmentId: String(s.assignmentId),
+        studentId: String(s.studentId),
         score: (s.score === '' || s.score === null || s.score === undefined) ? null : Number(s.score)
       }));
       setScores(cleanScores);
