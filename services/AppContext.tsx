@@ -81,20 +81,59 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     const res = await callApi('getData');
     
     if (res.status === 'success') {
+      // Clean Students
       const cleanStudents = (res.students || []).map((s: any) => ({
          ...s,
          gradeLevel: Number(s.gradeLevel),
          classroom: s.classroom ? String(s.classroom).trim() : ''
       }));
       setStudents(cleanStudents);
-      setAssignments(res.assignments || []);
-      setScores(res.scores || []);
+
+      // Clean Assignments (Parse classrooms JSON string)
+      const cleanAssignments = (res.assignments || []).map((a: any) => {
+        let cls: string[] = [];
+        if (Array.isArray(a.classrooms)) {
+          cls = a.classrooms;
+        } else if (typeof a.classrooms === 'string') {
+          try {
+            cls = JSON.parse(a.classrooms);
+          } catch (e) {
+            console.warn("Failed to parse classrooms:", a.classrooms);
+            cls = [];
+          }
+        }
+        return {
+          ...a,
+          gradeLevel: Number(a.gradeLevel),
+          maxScore: Number(a.maxScore),
+          classrooms: Array.isArray(cls) ? cls : []
+        };
+      });
+      setAssignments(cleanAssignments);
+
+      // Clean Scores
+      const cleanScores = (res.scores || []).map((s: any) => ({
+        ...s,
+        score: (s.score === '' || s.score === null || s.score === undefined) ? null : Number(s.score)
+      }));
+      setScores(cleanScores);
+
+      // Clean Attendance
       const cleanAttendance = (res.attendance || []).map((a: any) => ({
          ...a,
          date: typeof a.date === 'string' ? a.date.split('T')[0] : a.date
       }));
       setAttendance(cleanAttendance);
-      setHealthRecords(res.healthRecords || []);
+
+      // Clean Health Records
+      const cleanHealth = (res.healthRecords || []).map((h: any) => ({
+        ...h,
+        weight: Number(h.weight),
+        height: Number(h.height),
+        bmi: Number(h.bmi)
+      }));
+      setHealthRecords(cleanHealth);
+
     } else if (res.status === 'mock_fallback') {
       if (students.length === 0) setStudents(MOCK_STUDENTS);
       if (assignments.length === 0) setAssignments(INITIAL_ASSIGNMENTS);
