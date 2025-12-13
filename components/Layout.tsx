@@ -113,10 +113,19 @@ export const Layout = ({ children }: PropsWithChildren) => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 overflow-y-auto">
-        <div className="max-w-6xl mx-auto">
+      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 overflow-y-auto flex flex-col">
+        <div className="max-w-6xl mx-auto w-full flex-grow">
           {children}
         </div>
+        
+        {/* Footer */}
+        <footer className="mt-12 py-6 flex justify-center">
+          <div className="px-6 py-2 rounded-full bg-white/40 border border-white/50 shadow-sm backdrop-blur-sm flex items-center gap-2 hover:bg-white/60 transition-colors cursor-default">
+            <span className="text-gray-600 text-sm font-medium">พัฒนาและออกแบบโดย</span>
+            <span className="text-accent font-bold font-['Mitr'] text-base">Krukai</span>
+            <span className="text-gray-400 text-xs border-l border-gray-300 pl-2">@2025</span>
+          </div>
+        </footer>
       </main>
     </div>
   );

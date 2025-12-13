@@ -32,7 +32,7 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gr5/30 to-gr6/30 p-4 font-['Sarabun']">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gr5/30 to-gr6/30 p-4 font-['Sarabun']">
       <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-white/50">
         <div className="text-center mb-8">
           <img 
@@ -132,6 +132,14 @@ export const Login = () => {
           <p>Student: ระบุเลขประจำตัวนักเรียน (เช่น 1782)</p>
         </div>
       </div>
+
+      <footer className="mt-8 text-center">
+         <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-white/40 border border-white/50 shadow-sm backdrop-blur-sm hover:bg-white/60 transition-colors cursor-default">
+           <span className="text-gray-600 text-sm font-medium">พัฒนาและออกแบบโดย</span>
+           <span className="text-accent font-bold font-['Mitr']">Krukai</span>
+           <span className="text-gray-400 text-xs border-l border-gray-300 pl-2">@2025</span>
+         </div>
+      </footer>
     </div>
   );
 };
