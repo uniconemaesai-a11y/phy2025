@@ -82,11 +82,33 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     
     if (res.status === 'success') {
       // Clean Students
-      const cleanStudents = (res.students || []).map((s: any) => ({
-         ...s,
-         gradeLevel: Number(s.gradeLevel),
-         classroom: s.classroom ? String(s.classroom).trim() : ''
-      }));
+      const cleanStudents = (res.students || []).map((s: any) => {
+         let grade = Number(s.gradeLevel);
+         let cls = s.classroom ? String(s.classroom).trim() : '';
+
+         // Fix: Check if classroom is converted to Date string by Google Sheets (e.g., "2024-05-01T...")
+         // This happens when inputs like "5/1" are interpreted as May 1st
+         if (cls.length > 10 && !isNaN(Date.parse(cls))) {
+            const date = new Date(cls);
+            // Use local components to reconstruct "Month/Day"
+            // "5/1" -> May 1st -> Month 5, Day 1
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            cls = `${month}/${day}`;
+         }
+
+         return {
+            ...s,
+            gradeLevel: grade,
+            classroom: cls
+         };
+      });
+      
+      // Sort students by ID or Name for consistency
+      cleanStudents.sort((a: StudentData, b: StudentData) => {
+          return a.classroom.localeCompare(b.classroom) || a.studentId.localeCompare(b.studentId);
+      });
+
       setStudents(cleanStudents);
 
       // Clean Assignments (Parse classrooms JSON string)
@@ -96,10 +118,15 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
           cls = a.classrooms;
         } else if (typeof a.classrooms === 'string') {
           try {
+            // Attempt to parse JSON
             cls = JSON.parse(a.classrooms);
           } catch (e) {
-            console.warn("Failed to parse classrooms:", a.classrooms);
-            cls = [];
+            // If parse fails, maybe it's a single value string or comma separated
+            if (a.classrooms.includes(',')) {
+                cls = a.classrooms.split(',').map((c: string) => c.trim());
+            } else {
+                cls = [a.classrooms];
+            }
           }
         }
         return {
