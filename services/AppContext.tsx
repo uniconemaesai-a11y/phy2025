@@ -261,23 +261,39 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     }
   }, []);
 
-  // ... (Login logic omitted for brevity, same as previous) ... 
-  const fetchUsersFromSheet = async (): Promise<any[]> => {
-    // Standard mock user implementation for the sake of the XML limit
-    return [];
-  };
-
   const login = async (username: string, password?: string, role: Role = Role.TEACHER) => {
     setIsLoading(true);
-    // Shortcut for dev: use mock immediately
-    const foundUser = MOCK_USERS.find(u => u.username === username && u.role === role);
-       if (foundUser && (role !== Role.TEACHER || password === '1234')) {
-           setIsLoading(false);
-           setCurrentUser(foundUser);
-           localStorage.setItem('user', JSON.stringify(foundUser));
-           refreshData();
-           return true;
-       }
+
+    if (role === Role.TEACHER) {
+      const foundTeacher = MOCK_USERS.find(u => u.username === username && u.role === Role.TEACHER);
+      if (foundTeacher && password === '1234') {
+        setIsLoading(false);
+        setCurrentUser(foundTeacher);
+        localStorage.setItem('user', JSON.stringify(foundTeacher));
+        refreshData();
+        return true;
+      }
+    } else if (role === Role.STUDENT) {
+      // Check ALL mock students, not just the ones in MOCK_USERS
+      const foundStudent = MOCK_STUDENTS.find(s => s.studentId === username);
+      
+      if (foundStudent) {
+        const user: User = {
+           id: foundStudent.id,
+           username: foundStudent.studentId,
+           name: foundStudent.name,
+           role: Role.STUDENT,
+           gradeLevel: foundStudent.gradeLevel,
+           classroom: foundStudent.classroom
+        };
+        setIsLoading(false);
+        setCurrentUser(user);
+        localStorage.setItem('user', JSON.stringify(user));
+        refreshData();
+        return true;
+      }
+    }
+
     setIsLoading(false);
     return false;
   };
