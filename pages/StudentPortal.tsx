@@ -7,7 +7,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { Link, useNavigate } from 'react-router-dom';
 
 export const StudentPortal = () => {
-  const { currentUser, assignments, scores, getStudentScore, getStudentAttendanceStats, getLatestHealthRecord, announcements, quizzes, quizResults, refreshData, isLoading } = useApp();
+  const { currentUser, assignments, scores, getStudentScore, getStudentAttendanceStats, getLatestHealthRecord, announcements, quizzes, quizResults, refreshData, isLoading, showToast } = useApp();
   const [confirmed, setConfirmed] = useState(false);
   const navigate = useNavigate();
 
@@ -51,6 +51,7 @@ export const StudentPortal = () => {
 
   const handleConfirm = () => {
     setConfirmed(true);
+    showToast('ขอบคุณ', 'รับทราบผลการเรียนเรียบร้อยแล้ว', 'success');
     setTimeout(() => setConfirmed(false), 3000);
   };
 

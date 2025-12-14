@@ -273,6 +273,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
        setCurrentUser(res.user);
        localStorage.setItem('user', JSON.stringify(res.user));
        refreshData();
+       showToast('ยินดีต้อนรับ', `สวัสดีคุณ ${res.user.name}`, 'success');
        return true;
     }
 
@@ -285,6 +286,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
             setCurrentUser(foundTeacher);
             localStorage.setItem('user', JSON.stringify(foundTeacher));
             refreshData();
+            showToast('ยินดีต้อนรับ', `สวัสดีคุณ ${foundTeacher.name}`, 'success');
             return true;
           }
         } else if (role === Role.STUDENT) {
@@ -302,6 +304,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
             setCurrentUser(user);
             localStorage.setItem('user', JSON.stringify(user));
             refreshData();
+            showToast('ยินดีต้อนรับ', `สวัสดีน้อง ${user.name}`, 'success');
             return true;
           }
         }
@@ -320,6 +323,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     setAttendance([]);
     setQuizzes([]);
     setQuizResults([]);
+    showToast('ออกจากระบบ', 'ไว้พบกันใหม่นะครับ', 'info');
   };
 
   // --- CRUD Wrappers ---

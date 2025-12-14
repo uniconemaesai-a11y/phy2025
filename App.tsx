@@ -3,6 +3,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './services/AppContext';
 import { Layout } from './components/Layout';
+import { ToastContainer } from './components/ToastContainer';
 import { Login } from './pages/Login';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { ManageAssignments } from './pages/ManageAssignments';
@@ -114,6 +115,7 @@ export default function App() {
       <AppProvider>
         <HashRouter>
           <AppRoutes />
+          <ToastContainer />
         </HashRouter>
       </AppProvider>
     </ErrorBoundary>

@@ -3,15 +3,15 @@
 // =======================================================
 //  CLASSROOM MANAGEMENT SYSTEM - MASTER BACKEND
 //  Version: Final Production (JS)
-//  Updated: Enhanced Telegram Notifications
+//  Updated: Telegram Notification Only (No Chatbot)
 // =======================================================
 
 // --- 1. CONFIGURATION (ตั้งค่า) ---
 const SPREADSHEET_ID = '192jkPyqJHzlvaTqsI_zYW1z6exjoLBopwAz3NbGyxvc'; 
 
-// *** ตั้งค่า TELEGRAM (ถ้าไม่ใช้ให้ปล่อยว่างได้) ***
+// *** ตั้งค่า TELEGRAM (สำหรับส่งแจ้งเตือนเท่านั้น) ***
 const TELEGRAM_BOT_TOKEN = '8331424730:AAFSQohH5QXg380flhcLyW_xupp8eppGyro';
-const TELEGRAM_CHAT_ID = '-1003596963057'; 
+const TELEGRAM_CHAT_ID = '-1003596963057'; // Default Channel ID for notifications
 
 // --- 2. DATABASE SCHEMAS (โครงสร้างตาราง) ---
 // ชื่อคอลัมน์ต้องตรงกับหัวตารางใน Google Sheets เป๊ะๆ
@@ -34,10 +34,19 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  return handleRequest(e);
+  if (!e || !e.postData || !e.postData.contents) {
+    return ContentService.createTextOutput("No Content");
+  }
+
+  const contents = JSON.parse(e.postData.contents);
+
+  // รับ Request จาก React App เท่านั้น (ยกเลิกการรับ Webhook จาก Telegram)
+  return handleRequest(e, contents);
 }
 
-function handleRequest(e) {
+// --- APP REQUEST LOGIC ---
+
+function handleRequest(e, data) {
   const lock = LockService.getScriptLock();
   // รอคิวได้นานสุด 30 วินาที ป้องกันการชนกันของข้อมูล
   if (!lock.tryLock(30000)) { 
@@ -45,11 +54,6 @@ function handleRequest(e) {
   }
 
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-       return createJSONOutput({ status: 'error', message: 'No data received.' });
-    }
-
-    const data = JSON.parse(e.postData.contents);
     const action = data.action;
     const payload = data.payload;
     
@@ -346,6 +350,8 @@ function loginUser(username, password, role) {
 
     if (student) {
       const studentUser = { ...student, role: 'STUDENT' };
+      // Telegram Notification for Student Login
+      sendTelegramMessage(`🎓 <b>เข้าใช้งานระบบ:</b> ${student.name}\n🆔 รหัส: ${student.studentId}\n🏫 ชั้น: ป.${student.gradeLevel} ห้อง ${student.classroom}`);
       return { status: 'success', user: studentUser };
     }
     return { status: 'error', message: 'ไม่พบรหัสนักเรียนนี้ในระบบ' };
@@ -463,13 +469,18 @@ function updateHealthRecord(payload) {
   return { status: 'success' };
 }
 
-function sendTelegramMessage(text) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+// ปรับปรุงฟังก์ชันส่งข้อความให้รองรับ targetChatId
+function sendTelegramMessage(text, targetChatId) {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  const chatId = targetChatId || TELEGRAM_CHAT_ID;
+  
+  if (!chatId) return;
+
   try {
     UrlFetchApp.fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       'method': 'post',
       'contentType': 'application/json',
-      'payload': JSON.stringify({ 'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'HTML' }),
+      'payload': JSON.stringify({ 'chat_id': chatId, 'text': text, 'parse_mode': 'HTML' }),
       'muteHttpExceptions': true
     });
   } catch (e) {
