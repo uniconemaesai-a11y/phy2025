@@ -84,14 +84,14 @@ export const Layout = ({ children }: PropsWithChildren) => {
   );
 
   return (
-    <div className="min-h-screen bg-bg flex font-['Sarabun']">
+    <div className="min-h-screen flex font-['Sarabun'] bg-white/30 backdrop-blur-sm">
       {/* Sidebar Desktop */}
-      <aside className="hidden lg:flex flex-col w-64 bg-[#7FE5D8] border-r border-white/20 h-screen sticky top-0 shadow-lg z-10">
+      <aside className="hidden lg:flex flex-col w-64 bg-[#7FE5D8]/90 border-r border-white/20 h-screen sticky top-0 shadow-lg z-10 backdrop-blur-md">
         <NavContent />
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 w-full bg-[#7FE5D8] z-50 border-b border-white/20 px-4 py-3 flex items-center justify-between shadow-sm">
+      <div className="lg:hidden fixed top-0 w-full bg-[#7FE5D8]/95 backdrop-blur-md z-50 border-b border-white/20 px-4 py-3 flex items-center justify-between shadow-sm">
          <div className="flex items-center gap-2">
            <img src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" alt="Logo" className="w-8 h-8 object-contain" />
            <h2 className="text-xl font-bold text-fg">Health & PE</h2>
@@ -105,7 +105,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-64 bg-[#7FE5D8] shadow-2xl flex flex-col">
+          <div className="absolute right-0 top-0 h-full w-64 bg-[#7FE5D8]/95 backdrop-blur-md shadow-2xl flex flex-col">
             <div className="flex justify-end p-4">
               <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-700 hover:bg-white/20 rounded-full p-1"><X size={24} /></button>
             </div>
@@ -122,7 +122,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
         
         {/* Footer */}
         <footer className="mt-12 py-6 flex justify-center">
-          <div className="px-6 py-2 rounded-full bg-white/40 border border-white/50 shadow-sm backdrop-blur-sm flex items-center gap-2 hover:bg-white/60 transition-colors cursor-default">
+          <div className="px-6 py-2 rounded-full bg-white/60 border border-white/50 shadow-sm backdrop-blur-md flex items-center gap-2 hover:bg-white/80 transition-colors cursor-default">
             <span className="text-gray-600 text-sm font-medium">พัฒนาและออกแบบโดย</span>
             <span className="text-accent font-bold font-['Mitr'] text-base">Krukai</span>
             <span className="text-gray-400 text-xs border-l border-gray-300 pl-2">@2025</span>
@@ -134,7 +134,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
           {toasts.map(toast => (
             <div 
               key={toast.id}
-              className={`pointer-events-auto w-80 bg-white rounded-xl shadow-xl border-l-4 p-4 flex gap-3 animate-slide-in hover:scale-[1.02] transition-transform ${
+              className={`pointer-events-auto w-80 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border-l-4 p-4 flex gap-3 animate-slide-in hover:scale-[1.02] transition-transform ${
                 toast.type === 'success' ? 'border-green-500' : 
                 toast.type === 'error' ? 'border-red-500' : 'border-blue-500'
               }`}

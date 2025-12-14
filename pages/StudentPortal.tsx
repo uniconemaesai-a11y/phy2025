@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
-import { CheckCircle2, Clock, BarChart3, AlertCircle, ChevronRight, Check, Award, Flame, Heart, Megaphone, BrainCircuit, Play, History, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Clock, BarChart3, AlertCircle, ChevronRight, Check, Award, Flame, Heart, Megaphone, BrainCircuit, Play, History, RefreshCw, Star } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -41,11 +41,13 @@ export const StudentPortal = () => {
      .slice(0, 3);
 
   // Quizzes Logic
-  // Fallback to empty array if quizzes is undefined
   const safeQuizzes = quizzes || [];
   const allQuizzes = safeQuizzes.filter(q => Number(q.gradeLevel) === Number(currentUser.gradeLevel) && q.status === 'published');
-  const todoQuizzes = allQuizzes.filter(q => !quizResults.some(r => r.quizId === q.id && r.studentId === currentUser.id));
+  
+  // Filter quizzes that have at least one result
   const doneQuizzes = allQuizzes.filter(q => quizResults.some(r => r.quizId === q.id && r.studentId === currentUser.id));
+  // Filter quizzes that have NO results
+  const todoQuizzes = allQuizzes.filter(q => !quizResults.some(r => r.quizId === q.id && r.studentId === currentUser.id));
 
   const handleConfirm = () => {
     setConfirmed(true);
@@ -162,25 +164,42 @@ export const StudentPortal = () => {
                  </div>
              )}
 
-             {/* Completed List */}
+             {/* Completed List (With Retry) */}
              {doneQuizzes.length > 0 && (
                  <div>
                     <h4 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-2"><History size={16}/> ทำเสร็จแล้ว ({doneQuizzes.length})</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {doneQuizzes.map(quiz => {
-                            const result = quizResults.find(r => r.quizId === quiz.id && r.studentId === currentUser.id);
+                            // Calculate Best Score
+                            const attempts = quizResults.filter(r => r.quizId === quiz.id && r.studentId === currentUser.id);
+                            const bestScore = attempts.length > 0 ? Math.max(...attempts.map(a => a.score)) : 0;
+                            const attemptsCount = attempts.length;
+
                             return (
-                                <div key={quiz.id} className="bg-gray-50 p-5 rounded-2xl border border-gray-200 relative overflow-hidden opacity-90 hover:opacity-100 transition-opacity">
+                                <button 
+                                  key={quiz.id} 
+                                  onClick={() => navigate(`/student/quiz/${quiz.id}`)}
+                                  className="text-left w-full bg-white p-5 rounded-2xl border border-gray-200 hover:border-accent hover:shadow-md transition-all group"
+                                >
                                     <div className="flex justify-between items-start mb-2">
                                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{quiz.unit}</span>
-                                        <span className="bg-green-100 text-green-600 text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1"><Check size={10}/> DONE</span>
+                                        <div className="flex gap-1">
+                                            <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                                <RefreshCw size={10}/> {attemptsCount} ครั้ง
+                                            </span>
+                                            <span className="bg-green-100 text-green-600 text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                                <Check size={10}/> DONE
+                                            </span>
+                                        </div>
                                     </div>
-                                    <h4 className="font-bold text-gray-700 mb-3">{quiz.title}</h4>
-                                    <div className="bg-white rounded-xl p-3 flex justify-between items-center border border-gray-100">
-                                        <span className="text-xs text-gray-400">คะแนนที่ได้</span>
-                                        <div className={`text-xl font-bold ${gradeColor}`}>{result?.score} <span className="text-sm text-gray-400">/ {quiz.totalScore}</span></div>
+                                    <h4 className="font-bold text-gray-700 mb-3 group-hover:text-accent transition-colors">{quiz.title}</h4>
+                                    <div className="bg-gray-50 rounded-xl p-3 flex justify-between items-center border border-gray-100">
+                                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                                            <Star size={14} className="text-yellow-400 fill-current"/> คะแนนสูงสุด
+                                        </div>
+                                        <div className={`text-xl font-bold ${gradeColor}`}>{bestScore} <span className="text-sm text-gray-400">/ {quiz.totalScore}</span></div>
                                     </div>
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
@@ -241,8 +260,8 @@ export const StudentPortal = () => {
 
         <div className="space-y-6">
            <Card title="พัฒนาการเรียนรู้">
-             <div className="h-48 w-full">
-               <ResponsiveContainer width="100%" height="100%">
+             <div className="h-48 w-full min-w-0">
+               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                  <LineChart data={chartData}>
                    <XAxis dataKey="name" hide />
                    <YAxis hide domain={[0, 100]} />

@@ -6,7 +6,7 @@ import { Quiz, Question, QuestionType } from '../types';
 import { Plus, Trash2, Save, BrainCircuit, X, ClipboardList, HelpCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 export const ManageQuizzes = () => {
-  const { quizzes, addQuiz, deleteQuiz } = useApp();
+  const { quizzes, addQuiz, deleteQuiz, showToast } = useApp();
   const [filterGrade, setFilterGrade] = useState<5 | 6>(5);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -134,9 +134,9 @@ export const ManageQuizzes = () => {
         }));
         setBulkText('');
         setIsBulkMode(false);
-        alert(`เพิ่มข้อสอบสำเร็จ ${questions.length} ข้อ`);
+        showToast('สำเร็จ', `เพิ่มข้อสอบสำเร็จ ${questions.length} ข้อ`, 'success');
     } else {
-        alert('ไม่พบรูปแบบข้อสอบที่ถูกต้อง กรุณาตรวจสอบรูปแบบข้อความ');
+        showToast('ผิดพลาด', 'ไม่พบรูปแบบข้อสอบที่ถูกต้อง กรุณาตรวจสอบรูปแบบข้อความ', 'error');
     }
   };
 
@@ -149,7 +149,7 @@ export const ManageQuizzes = () => {
 
   const handleSubmitQuiz = async () => {
     if (!quizForm.title || !quizForm.unit || !quizForm.questions?.length) {
-        alert("กรุณากรอกข้อมูลให้ครบและเพิ่มคำถามอย่างน้อย 1 ข้อ");
+        showToast('แจ้งเตือน', "กรุณากรอกข้อมูลให้ครบและเพิ่มคำถามอย่างน้อย 1 ข้อ", 'error');
         return;
     }
 

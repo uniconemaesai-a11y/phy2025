@@ -1,13 +1,14 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
-import { Users, Plus, Upload, Edit2, Trash2, Search, X, Check, Loader2, FileText, Printer } from 'lucide-react';
+import { Users, Plus, Upload, Edit2, Trash2, Search, X, Check, Loader2, FileText, Printer, AlertTriangle, Download } from 'lucide-react';
 import { StudentData } from '../types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export const StudentManagement = () => {
-  const { students, addStudent, updateStudent, deleteStudent, getStudentScore, assignments, getStudentAttendanceStats, getLatestHealthRecord } = useApp();
+  const { students, addStudent, updateStudent, deleteStudent, getStudentScore, assignments, getStudentAttendanceStats, getLatestHealthRecord, showToast } = useApp();
   
   // Filtering
   const [filterGrade, setFilterGrade] = useState<5 | 6>(5);
@@ -19,6 +20,9 @@ export const StudentManagement = () => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [reportStudent, setReportStudent] = useState<StudentData | null>(null);
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
+  
+  // Delete Confirm State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Forms
   const [formData, setFormData] = useState<Partial<StudentData>>({ gradeLevel: 5, classroom: '5/1' });
@@ -43,12 +47,12 @@ export const StudentManagement = () => {
       await updateStudent({ ...editingStudent, ...formData } as StudentData);
     } else {
       if (students.some(s => s.studentId === formData.studentId)) {
-        alert('รหัสประจำตัวนักเรียนนี้มีอยู่ในระบบแล้ว');
+        showToast('แจ้งเตือน', 'รหัสประจำตัวนักเรียนนี้มีอยู่ในระบบแล้ว', 'error');
         setIsSubmitting(false);
         return;
       }
       await addStudent({
-        id: `S${Date.now()}`,
+        id: formData.name, // Use Name as ID per request
         studentId: formData.studentId,
         name: formData.name,
         gradeLevel: formData.gradeLevel as 5 | 6,
@@ -71,7 +75,7 @@ export const StudentManagement = () => {
         const name = parts.slice(2).join(' ');
         if (!students.some(s => s.studentId === sid)) {
            await addStudent({
-             id: `S${Date.now() + Math.random()}`,
+             id: name, // Use Name as ID per request
              studentId: sid,
              name: name,
              gradeLevel: filterGrade,
@@ -82,13 +86,18 @@ export const StudentManagement = () => {
       }
     }
     setIsSubmitting(false);
-    alert(`เพิ่มนักเรียนสำเร็จ ${addedCount} คน`);
+    showToast('สำเร็จ', `เพิ่มนักเรียนสำเร็จ ${addedCount} คน`, 'success');
     closeModals();
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('ยืนยันการลบนักเรียน? ข้อมูลคะแนนจะถูกลบด้วย')) {
-      await deleteStudent(id);
+  const handleDelete = (id: string) => {
+    setDeleteConfirmId(id);
+  };
+
+  const executeDelete = async () => {
+    if (deleteConfirmId) {
+      await deleteStudent(deleteConfirmId);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -121,8 +130,36 @@ export const StudentManagement = () => {
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         pdf.save(`Report_${reportStudent?.studentId}.pdf`);
     } catch (e) {
-        alert('เกิดข้อผิดพลาดในการพิมพ์');
+        showToast('ผิดพลาด', 'เกิดข้อผิดพลาดในการพิมพ์', 'error');
     }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredStudents.length === 0) {
+       showToast('แจ้งเตือน', 'ไม่พบข้อมูลนักเรียนสำหรับส่งออก', 'info');
+       return;
+    }
+
+    // CSV Header
+    const headers = ['ลำดับ,รหัสประจำตัว,ชื่อ-นามสกุล,ระดับชั้น,ห้องเรียน'];
+    
+    // CSV Rows
+    const rows = filteredStudents.map((s, index) => 
+      `${index + 1},"${s.studentId}","${s.name}",${s.gradeLevel},"${s.classroom}"`
+    );
+
+    // Combine with BOM for Excel Thai support
+    const csvContent = '\uFEFF' + [headers, ...rows].join('\n');
+    
+    // Create Blob and Download Link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Student_List_Grade${filterGrade}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -132,7 +169,13 @@ export const StudentManagement = () => {
           <h1 className="text-2xl font-bold font-['Mitr']">จัดการนักเรียน</h1>
           <p className="text-gray-500">เพิ่ม แก้ไข และลบข้อมูลนักเรียน (เชื่อมต่อฐานข้อมูล)</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button 
+            onClick={handleExportCSV}
+            className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center gap-2"
+          >
+            <Download size={18} /> Export CSV
+          </button>
           <button 
             onClick={() => setIsBulkModalOpen(true)}
             className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center gap-2"
@@ -476,6 +519,24 @@ export const StudentManagement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirmId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirmId(null)}></div>
+             <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm relative z-10 flex flex-col items-center text-center animate-fade-in-up">
+                 <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+                     <AlertTriangle size={32} />
+                 </div>
+                 <h3 className="text-xl font-bold font-['Mitr'] text-gray-800 mb-2">ยืนยันการลบ?</h3>
+                 <p className="text-gray-500 mb-6">ข้อมูลคะแนนและประวัติต่างๆ ของนักเรียนคนนี้จะถูกลบทั้งหมด</p>
+                 <div className="flex gap-3 w-full">
+                     <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2.5 rounded-xl text-gray-500 font-bold hover:bg-gray-100 transition-colors">ยกเลิก</button>
+                     <button onClick={executeDelete} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold shadow-lg hover:shadow-xl hover:bg-red-600 transition-all">ยืนยันลบ</button>
+                 </div>
+             </div>
+          </div>
       )}
     </div>
   );

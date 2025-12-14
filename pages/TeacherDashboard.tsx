@@ -18,7 +18,7 @@ export const TeacherDashboard = () => {
     const intervalId = setInterval(() => {
         // This background refresh will trigger the toast logic in AppContext 
         // if new submissions are found
-        refreshData(); 
+        refreshData().catch(err => console.debug('Background refresh suppressed:', err)); 
     }, 15000); // Check every 15 seconds
 
     return () => clearInterval(intervalId);
@@ -124,8 +124,8 @@ export const TeacherDashboard = () => {
         {/* Left Column: Charts */}
         <div className="lg:col-span-2 space-y-6">
           <Card title="สถิติการส่งงานล่าสุด">
-             <div className="h-64 w-full">
-               <ResponsiveContainer width="100%" height="100%">
+             <div className="h-64 w-full min-w-0">
+               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis fontSize={12} tickLine={false} axisLine={false} />

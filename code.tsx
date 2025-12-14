@@ -3,7 +3,7 @@
 // =======================================================
 //  CLASSROOM MANAGEMENT SYSTEM - MASTER BACKEND
 //  Version: Final Production (JS)
-//  Updated: Robust Quiz Saving
+//  Updated: Enhanced Telegram Notifications
 // =======================================================
 
 // --- 1. CONFIGURATION (ตั้งค่า) ---
@@ -70,7 +70,7 @@ function handleRequest(e) {
     // --- ASSIGNMENTS ---
     } else if (action === 'addAssignment') {
       result = addData('Assignments', payload);
-      sendTelegramMessage(`📢 <b>สั่งงานใหม่</b>\n📚 ${payload.title}`);
+      sendTelegramMessage(`📢 <b>สั่งงานใหม่</b>\n📚 ${payload.title}\nระดับ: ป.${payload.gradeLevel}`);
     
     } else if (action === 'deleteAssignment') {
       result = deleteData('Assignments', data.id);
@@ -88,6 +88,8 @@ function handleRequest(e) {
     // --- STUDENTS ---
     } else if (action === 'addStudent') {
       result = addData('Students', payload);
+      // New Student Notification
+      sendTelegramMessage(`🆕 <b>นักเรียนใหม่:</b> ${payload.name}\nรหัส: ${payload.studentId}\nชั้น: ป.${payload.gradeLevel} ห้อง ${payload.classroom}`);
     
     } else if (action === 'updateStudent') {
       result = updateStudentData(payload);
@@ -98,6 +100,10 @@ function handleRequest(e) {
     // --- ATTENDANCE ---
     } else if (action === 'markAttendance') {
       result = markAttendanceData(payload);
+      // Individual Absence Notification
+      if (payload.status === 'missing') {
+          sendTelegramMessage(`❌ <b>แจ้งขาดเรียน:</b> ${payload.studentId}\nวันที่: ${payload.date}`);
+      }
     
     } else if (action === 'markAttendanceBulk') {
       result = markAttendanceBulk(payload);
@@ -105,10 +111,17 @@ function handleRequest(e) {
     // --- HEALTH ---
     } else if (action === 'updateHealthRecord') {
       result = updateHealthRecord(payload);
+      // Health Alert Notification
+      if (['เริ่มอ้วน', 'อ้วน', 'ผอม'].includes(payload.interpretation)) {
+          sendTelegramMessage(`🏥 <b>แจ้งเตือนสุขภาพ:</b> ${payload.studentId}\nผลการประเมิน: ${payload.interpretation}\nBMI: ${payload.bmi}`);
+      }
 
     // --- ANNOUNCEMENTS ---
     } else if (action === 'addAnnouncement') {
       result = addData('Announcements', payload);
+      if (payload.type === 'urgent') {
+          sendTelegramMessage(`🔥 <b>ประกาศด่วน:</b> ${payload.title}\n${payload.content}`);
+      }
 
     // --- QUIZZES (แก้ไขระบบบันทึกข้อสอบให้รัดกุมที่สุด) ---
     } else if (action === 'addQuiz') {
@@ -150,7 +163,23 @@ function handleRequest(e) {
           answers: JSON.stringify(payload.answers || {})
       };
       result = addData('QuizResults', resultData);
-      sendTelegramMessage(`✅ <b>ส่งข้อสอบ:</b> ${payload.studentId}\nคะแนน: ${payload.score} / ${payload.totalScore}`);
+      
+      // Advanced Quiz Result Notification
+      let emoji = '✅';
+      let statusMsg = '';
+      const score = Number(payload.score);
+      const total = Number(payload.totalScore);
+      const percent = (score / total) * 100;
+
+      if (score === total) {
+          emoji = '🏆';
+          statusMsg = ' (คะแนนเต็ม!)';
+      } else if (percent < 50) {
+          emoji = '⚠️';
+          statusMsg = ' (ควรปรับปรุง)';
+      }
+
+      sendTelegramMessage(`${emoji} <b>ส่งข้อสอบ:</b> ${payload.studentId}\nวิชา: ${payload.quizId}\nได้: ${score} / ${total}${statusMsg}`);
     }
 
     return createJSONOutput(result);

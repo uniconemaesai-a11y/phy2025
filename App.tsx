@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './services/AppContext';
@@ -13,6 +14,7 @@ import { HealthData } from './pages/HealthData';
 import { ManageQuizzes } from './pages/ManageQuizzes';
 import { TakeQuiz } from './pages/TakeQuiz';
 import { Role } from './types';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRole }: React.PropsWithChildren<{ allowedRole?: Role }>) => {
@@ -108,10 +110,12 @@ const AppRoutes = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <HashRouter>
-        <AppRoutes />
-      </HashRouter>
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <HashRouter>
+          <AppRoutes />
+        </HashRouter>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

@@ -4,7 +4,7 @@ import { User, Assignment, Score, StudentData, Role, Attendance, HealthRecord, A
 import { MOCK_USERS, MOCK_STUDENTS, INITIAL_ASSIGNMENTS, INITIAL_SCORES, INITIAL_ATTENDANCE, MOCK_ANNOUNCEMENTS, MOCK_QUIZZES } from '../constants';
 
 // *** REPLACE THIS WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL ***
-const API_URL = 'https://script.google.com/macros/s/AKfycbzTdG3A96NeVrQYteAmTiOXKW4cZ3f7IcvBDifkVuIbvFNE28FiQjWaLqYBtTjjBzWI/exec'; 
+const API_URL = 'https://script.google.com/macros/s/AKfycbwbiGi7sLuQHvBiErENFqkyjH31yEZ5gZXQsiLuM1S9oyQYAQKpNXeAfatT5DfZOriz/exec'; 
 
 interface AttendanceStats {
   present: number;

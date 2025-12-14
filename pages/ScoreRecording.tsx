@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
@@ -8,11 +9,14 @@ import { utils, writeFile } from 'xlsx';
 import { Score } from '../types';
 
 export const ScoreRecording = () => {
-  const { students, assignments, scores, updateScore, updateScoreBulk, getStudentScore, refreshData, isLoading } = useApp();
+  const { students, assignments, scores, updateScore, updateScoreBulk, getStudentScore, refreshData, isLoading, showToast } = useApp();
   const [filterGrade, setFilterGrade] = useState<5 | 6>(5);
   const [filterClass, setFilterClass] = useState<string>('all');
   const [isExporting, setIsExporting] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null); // For header menu
+  
+  // Bulk Confirm State
+  const [confirmBulk, setConfirmBulk] = useState<{assignmentId: string, val: number} | null>(null);
 
   // Filter logic
   const filteredAssignments = assignments.filter(a => a.gradeLevel === filterGrade);
@@ -43,23 +47,28 @@ export const ScoreRecording = () => {
     });
   };
 
-  const handleBulkScore = async (assignmentId: string, valStr: string) => {
+  const handleBulkScore = (assignmentId: string, valStr: string) => {
     const val = Number(valStr);
     const max = assignments.find(a => a.id === assignmentId)?.maxScore || 100;
     
     if (isNaN(val) || val < 0 || val > max) return;
+    setConfirmBulk({ assignmentId, val });
+  };
 
-    if (confirm(`ยืนยันการให้คะแนน ${val} คะแนน กับนักเรียนที่แสดงอยู่ทั้งหมด (${filteredStudents.length} คน)?`)) {
-      const scoresToUpdate: Score[] = filteredStudents.map(s => ({
-        studentId: s.id,
-        assignmentId,
-        score: val,
-        status: 'submitted'
-      }));
-      
-      await updateScoreBulk(scoresToUpdate);
-      setActiveMenu(null);
-    }
+  const executeBulkScore = async () => {
+    if (!confirmBulk) return;
+    const { assignmentId, val } = confirmBulk;
+    
+    const scoresToUpdate: Score[] = filteredStudents.map(s => ({
+      studentId: s.id,
+      assignmentId,
+      score: val,
+      status: 'submitted'
+    }));
+    
+    await updateScoreBulk(scoresToUpdate);
+    setConfirmBulk(null);
+    setActiveMenu(null);
   };
 
   const handleRefresh = async () => {
@@ -89,7 +98,7 @@ export const ScoreRecording = () => {
       pdf.save(`score_report_grade${filterGrade}.pdf`);
     } catch (error) {
       console.error('PDF Export failed', error);
-      alert('เกิดข้อผิดพลาดในการสร้าง PDF');
+      showToast('ผิดพลาด', 'เกิดข้อผิดพลาดในการสร้าง PDF', 'error');
     } finally {
       setIsExporting(false);
     }
@@ -97,7 +106,7 @@ export const ScoreRecording = () => {
 
   const handleExportExcel = () => {
     if (filteredStudents.length === 0) {
-      alert("ไม่มีข้อมูลนักเรียนสำหรับส่งออก");
+      showToast('แจ้งเตือน', 'ไม่มีข้อมูลนักเรียนสำหรับส่งออก', 'info');
       return;
     }
 
@@ -130,7 +139,7 @@ export const ScoreRecording = () => {
       
     } catch (error) {
       console.error("Excel Export Error:", error);
-      alert("เกิดข้อผิดพลาดในการส่งออก Excel");
+      showToast('ผิดพลาด', 'เกิดข้อผิดพลาดในการส่งออก Excel', 'error');
     }
   };
 
@@ -277,6 +286,23 @@ export const ScoreRecording = () => {
           </div>
         </div>
       </Card>
+
+      {/* Bulk Confirm Modal */}
+      {confirmBulk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmBulk(null)}></div>
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm relative z-10 text-center animate-fade-in-up">
+                <h3 className="text-lg font-bold font-['Mitr'] mb-2">ยืนยันคะแนนหมู่</h3>
+                <p className="text-gray-500 mb-6">
+                    ให้คะแนน <b>{confirmBulk.val}</b> แก่นักเรียนทั้งหมด <b>{filteredStudents.length}</b> คน?
+                </p>
+                <div className="flex gap-3 justify-center">
+                    <button onClick={() => setConfirmBulk(null)} className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-xl font-bold">ยกเลิก</button>
+                    <button onClick={executeBulkScore} className="px-6 py-2 bg-accent text-white font-bold rounded-xl shadow-lg hover:bg-orange-400">ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

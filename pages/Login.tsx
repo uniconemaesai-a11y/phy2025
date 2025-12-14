@@ -32,8 +32,8 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gr5/30 to-gr6/30 p-4 font-['Sarabun']">
-      <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-white/50">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 font-['Sarabun'] bg-white/10 backdrop-blur-[2px]">
+      <div className="bg-white/90 backdrop-blur-md p-8 rounded-3xl shadow-xl w-full max-w-md border border-white/50">
         <div className="text-center mb-8">
           <img 
             src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" 
@@ -45,7 +45,7 @@ export const Login = () => {
         </div>
 
         {/* Role Toggle */}
-        <div className="bg-gray-100 p-1 rounded-xl flex mb-6 relative">
+        <div className="bg-gray-100/80 p-1 rounded-xl flex mb-6 relative">
           <button
             type="button"
             onClick={() => { setRole(Role.TEACHER); setUsername(''); setPassword(''); setError(''); }}
@@ -77,8 +77,8 @@ export const Login = () => {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/50 focus:border-accent outline-none transition-all"
-                placeholder={role === Role.TEACHER ? "เช่น kai" : "ระบุเลขประจำตัว เช่น 1782"}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/50 focus:border-accent outline-none transition-all bg-white/80"
+                placeholder={role === Role.TEACHER ? "เช่น Krukai" : "ให้ใส่เลขประจำตัวนักเรียน"}
                 disabled={isLoading}
               />
             </div>
@@ -93,7 +93,7 @@ export const Login = () => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/50 focus:border-accent outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/50 focus:border-accent outline-none transition-all bg-white/80"
                   placeholder="••••••••"
                   disabled={isLoading}
                 />
@@ -129,15 +129,15 @@ export const Login = () => {
 
         <div className="mt-8 text-center text-xs text-gray-400">
           <p>Teacher: Kru.Prapars Palasai</p>
-          <p>Student: ระบุเลขประจำตัวนักเรียน ของนักเรียน </p>
+          <p>Student: ให้ใส่เลขประจำตัวนักเรียน</p>
         </div>
       </div>
 
       <footer className="mt-8 text-center">
          <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-white/40 border border-white/50 shadow-sm backdrop-blur-sm hover:bg-white/60 transition-colors cursor-default">
-           <span className="text-gray-600 text-sm font-medium">พัฒนาและออกแบบโดย</span>
+           <span className="text-gray-800 text-sm font-medium">พัฒนาและออกแบบโดย</span>
            <span className="text-accent font-bold font-['Mitr']">Krukai</span>
-           <span className="text-gray-400 text-xs border-l border-gray-300 pl-2">@2025</span>
+           <span className="text-gray-600 text-xs border-l border-gray-600 pl-2">@2025</span>
          </div>
       </footer>
     </div>

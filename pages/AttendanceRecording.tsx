@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
@@ -349,10 +350,10 @@ export const AttendanceRecording = () => {
                <p className="text-gray-500 text-sm">สถิติการมาเรียนทั้งหมด</p>
              </div>
 
-             <div className="h-64 w-full relative">
+             <div className="h-64 w-full relative min-w-0">
                {getStudentAttendanceStats(showStatsModal).totalDays > 0 ? (
                    <>
-                       <ResponsiveContainer width="100%" height="100%">
+                       <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                          <PieChart>
                            <Pie
                              data={getChartData(showStatsModal)}
