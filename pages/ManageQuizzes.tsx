@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
@@ -239,9 +240,18 @@ export const ManageQuizzes = () => {
             </Card>
          ))}
          {filteredQuizzes.length === 0 && (
-            <div className="col-span-full py-12 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-               <BrainCircuit size={48} className="mx-auto mb-2 opacity-30" />
-               <p>ยังไม่มีแบบทดสอบในระดับชั้นนี้</p>
+            <div className="col-span-full py-16 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+               <div className="bg-white p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                 <BrainCircuit size={40} className="text-gray-300" />
+               </div>
+               <h3 className="text-lg font-bold text-gray-600">ยังไม่มีแบบทดสอบ</h3>
+               <p className="text-sm text-gray-400 mt-1 mb-4">เริ่มสร้างแบบทดสอบจริงชุดแรกของคุณได้เลย</p>
+               <button 
+                 onClick={() => { setQuizForm(prev => ({...prev, gradeLevel: filterGrade})); setIsModalOpen(true); }}
+                 className="text-accent font-bold hover:underline"
+               >
+                 + สร้างแบบทดสอบใหม่
+               </button>
             </div>
          )}
       </div>
