@@ -1,37 +1,48 @@
+
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../services/AppContext';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, ChevronLeft, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, CheckCircle2, Trophy, ArrowRight, Loader2 } from 'lucide-react';
 import { QuizResult } from '../types';
 
 export const TakeQuiz = () => {
   const { quizId } = useParams();
   const navigate = useNavigate();
-  const { quizzes, currentUser, submitQuiz } = useApp();
+  const { quizzes, currentUser, submitQuiz, quizResults } = useApp();
   
   const quiz = quizzes.find(q => q.id === quizId);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [timeLeft, setTimeLeft] = useState(0);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [resultData, setResultData] = useState<{score: number, total: number} | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedResult, setSubmittedResult] = useState<{score: number, total: number} | null>(null);
+
+  // Check if already taken
+  useEffect(() => {
+     if (currentUser && quiz) {
+         const existing = quizResults.find(r => r.quizId === quiz.id && r.studentId === currentUser.id);
+         if (existing) {
+             setSubmittedResult({ score: existing.score, total: existing.totalScore });
+         }
+     }
+  }, [quiz, currentUser, quizResults]);
 
   useEffect(() => {
-    if (quiz) {
+    if (quiz && !submittedResult) {
         setTimeLeft(quiz.timeLimit * 60);
     }
-  }, [quiz]);
+  }, [quiz, submittedResult]);
 
   useEffect(() => {
-    if (timeLeft > 0 && !isSubmitted) {
+    if (timeLeft > 0 && !submittedResult && !isSubmitting) {
         const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
         return () => clearInterval(timer);
-    } else if (timeLeft === 0 && !isSubmitted && quiz) {
+    } else if (timeLeft === 0 && !submittedResult && !isSubmitting && quiz) {
         handleSubmit();
     }
-  }, [timeLeft, isSubmitted]);
+  }, [timeLeft, submittedResult, isSubmitting]);
 
-  if (!quiz || !currentUser) return <div>Quiz not found</div>;
+  if (!quiz || !currentUser) return <div className="p-8 text-center">กำลังโหลดข้อสอบ...</div>;
 
   const currentQuestion = quiz.questions[currentQIndex];
   const progress = ((Object.keys(answers).length) / quiz.questions.length) * 100;
@@ -46,6 +57,7 @@ export const TakeQuiz = () => {
   };
 
   const handleSelectAnswer = (ans: any) => {
+     if (isSubmitting || submittedResult) return;
      setAnswers(prev => ({
          ...prev,
          [currentQuestion.id]: ans
@@ -53,17 +65,19 @@ export const TakeQuiz = () => {
   };
 
   const handleSubmit = async () => {
-     if (!isSubmitted) {
-        setIsSubmitted(true);
+     if (isSubmitting || submittedResult) return;
+     
+     if (confirm('ยืนยันการส่งคำตอบ?')) {
+        setIsSubmitting(true);
         // Calculate Score
         let score = 0;
         quiz.questions.forEach(q => {
-            if (String(answers[q.id]) === String(q.correctAnswer)) {
+            const userAns = answers[q.id];
+            // Loose equality check for string/number match (e.g. "0" == 0)
+            if (String(userAns) === String(q.correctAnswer)) {
                 score += q.points;
             }
         });
-
-        setResultData({ score, total: quiz.totalScore });
 
         const result: QuizResult = {
             id: `R-${Date.now()}`,
@@ -74,31 +88,37 @@ export const TakeQuiz = () => {
             submittedAt: new Date().toISOString(),
             answers
         };
+        
         await submitQuiz(result);
+        setSubmittedResult({ score, total: quiz.totalScore });
+        setIsSubmitting(false);
      }
   };
 
-  if (isSubmitted && resultData) {
+  if (submittedResult) {
       return (
           <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-['Sarabun'] animate-fade-in">
-             <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
-                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500">
-                    <CheckCircle2 size={48} />
+             <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-full h-2 ${gradeColor}`}></div>
+                <div className="w-24 h-24 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6 text-yellow-500 shadow-sm border border-yellow-100">
+                    <Trophy size={48} />
                 </div>
                 <h2 className="text-2xl font-bold font-['Mitr'] text-gray-800 mb-2">ส่งคำตอบเรียบร้อย!</h2>
-                <p className="text-gray-500 mb-6">บันทึกคะแนนลงในระบบแล้ว</p>
+                <p className="text-gray-500 mb-6">ระบบได้บันทึกคะแนนของคุณแล้ว</p>
                 
-                <div className="bg-gray-50 rounded-2xl p-6 mb-8 border border-gray-100">
-                    <p className="text-sm text-gray-500 uppercase tracking-wide font-bold">คะแนนของคุณ</p>
-                    <p className={`text-6xl font-bold font-['Mitr'] ${gradeText} my-2`}>{resultData.score}</p>
-                    <p className="text-gray-400">เต็ม {resultData.total} คะแนน</p>
+                <div className="bg-gray-50 rounded-2xl p-8 mb-8 border border-gray-100">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide font-bold mb-2">คะแนนที่ได้</p>
+                    <div className="flex items-baseline justify-center gap-2">
+                        <span className={`text-6xl font-bold font-['Mitr'] ${gradeText}`}>{submittedResult.score}</span>
+                        <span className="text-xl text-gray-400 font-bold">/ {submittedResult.total}</span>
+                    </div>
                 </div>
 
                 <button 
                   onClick={() => navigate('/student')}
-                  className={`w-full py-3 rounded-xl text-white font-bold shadow-lg ${gradeColor} hover:opacity-90 transition-all`}
+                  className={`w-full py-3 rounded-xl text-white font-bold shadow-lg ${gradeColor} hover:opacity-90 transition-all flex items-center justify-center gap-2`}
                 >
-                    กลับหน้าหลัก
+                    กลับสู่หน้าหลัก <ArrowRight size={20} />
                 </button>
              </div>
           </div>
@@ -114,7 +134,7 @@ export const TakeQuiz = () => {
                 <p className={`text-xs font-bold uppercase tracking-wider ${gradeText}`}>{quiz.unit}</p>
                 <h1 className="font-bold text-gray-800 text-lg md:text-xl line-clamp-1">{quiz.title}</h1>
              </div>
-             <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-bold text-lg ${timeLeft < 60 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-gray-100 text-gray-600'}`}>
+             <div className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono font-bold text-lg border ${timeLeft < 60 ? 'bg-red-50 text-red-600 border-red-100 animate-pulse' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>
                 <Clock size={20} />
                 {formatTime(timeLeft)}
              </div>
@@ -122,58 +142,66 @@ export const TakeQuiz = () => {
        </div>
 
        {/* Progress Bar */}
-       <div className="h-2 w-full bg-gray-200">
+       <div className="h-1.5 w-full bg-gray-200">
           <div className={`h-full transition-all duration-500 ${gradeColor}`} style={{ width: `${progress}%` }}></div>
        </div>
 
        {/* Main Content */}
        <div className="flex-1 max-w-3xl mx-auto w-full p-4 md:p-8 flex flex-col justify-center">
-          <div className="bg-white rounded-3xl shadow-lg p-6 md:p-10 border border-gray-100 min-h-[400px] flex flex-col">
+          <div className="bg-white rounded-3xl shadow-lg p-6 md:p-10 border border-gray-100 min-h-[400px] flex flex-col relative overflow-hidden">
+             
+             {/* Question Number */}
+             <div className="flex justify-between items-start mb-6">
+                 <span className="bg-gray-100 text-gray-500 px-3 py-1 rounded-lg font-bold text-sm">
+                    ข้อที่ {currentQIndex + 1} / {quiz.questions.length}
+                 </span>
+                 <span className="text-xs text-gray-400 font-bold">{currentQuestion.points} คะแนน</span>
+             </div>
+
              <div className="flex-1">
-                <span className="text-gray-400 font-bold text-sm">คำถามที่ {currentQIndex + 1} / {quiz.questions.length}</span>
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mt-4 mb-8 leading-relaxed">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-8 leading-relaxed">
                    {currentQuestion.text}
                 </h2>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                    {currentQuestion.type === 'multiple_choice' && currentQuestion.choices?.map((choice, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleSelectAnswer(idx)}
-                        className={`w-full text-left p-4 md:p-6 rounded-2xl border-2 transition-all text-lg font-medium flex items-center gap-4 ${
+                        className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center gap-4 group ${
                             answers[currentQuestion.id] === idx 
-                            ? `border-current ${gradeText} bg-opacity-10 bg-current` 
-                            : 'border-gray-100 hover:border-gray-300 text-gray-600 bg-gray-50'
+                            ? `border-blue-500 bg-blue-50 text-blue-700` 
+                            : 'border-gray-100 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
                         }`}
                       >
-                         <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${answers[currentQuestion.id] === idx ? 'border-current bg-current text-white' : 'border-gray-300'}`}>
-                            {answers[currentQuestion.id] === idx && <div className="w-3 h-3 bg-white rounded-full"></div>}
+                         <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${answers[currentQuestion.id] === idx ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-300 group-hover:border-gray-400 text-gray-400'}`}>
+                            {answers[currentQuestion.id] === idx && <div className="w-2.5 h-2.5 bg-white rounded-full"></div>}
                          </div>
-                         {choice}
+                         <span className="text-lg">{choice}</span>
                       </button>
                    ))}
 
                    {currentQuestion.type === 'true_false' && (
-                       <div className="grid grid-cols-2 gap-4 h-32">
+                       <div className="grid grid-cols-2 gap-4">
                           <button
                             onClick={() => handleSelectAnswer('true')}
-                            className={`rounded-2xl border-2 text-xl font-bold transition-all ${
+                            className={`p-6 rounded-2xl border-2 text-xl font-bold transition-all flex flex-col items-center gap-2 ${
                                 answers[currentQuestion.id] === 'true' 
                                 ? 'border-green-500 bg-green-50 text-green-600' 
-                                : 'border-gray-100 hover:border-gray-300 text-gray-600 bg-gray-50'
+                                : 'border-gray-100 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                             ถูก
+                             <CheckCircle2 size={32} /> ถูก (True)
                           </button>
                           <button
                             onClick={() => handleSelectAnswer('false')}
-                            className={`rounded-2xl border-2 text-xl font-bold transition-all ${
+                            className={`p-6 rounded-2xl border-2 text-xl font-bold transition-all flex flex-col items-center gap-2 ${
                                 answers[currentQuestion.id] === 'false' 
                                 ? 'border-red-500 bg-red-50 text-red-600' 
-                                : 'border-gray-100 hover:border-gray-300 text-gray-600 bg-gray-50'
+                                : 'border-gray-100 hover:border-gray-300 text-gray-600 hover:bg-gray-50'
                             }`}
                           >
-                             ผิด
+                             <CheckCircle2 size={32} className="rotate-45" /> ผิด (False)
                           </button>
                        </div>
                    )}
@@ -185,7 +213,7 @@ export const TakeQuiz = () => {
                 <button 
                    onClick={() => setCurrentQIndex(prev => Math.max(0, prev - 1))}
                    disabled={currentQIndex === 0}
-                   className="flex items-center gap-2 text-gray-500 font-bold hover:text-gray-800 disabled:opacity-30 disabled:hover:text-gray-500 px-4 py-2"
+                   className="flex items-center gap-2 text-gray-400 font-bold hover:text-gray-700 disabled:opacity-30 px-4 py-2 transition-colors"
                 >
                    <ChevronLeft /> ย้อนกลับ
                 </button>
@@ -193,9 +221,10 @@ export const TakeQuiz = () => {
                 {currentQIndex === quiz.questions.length - 1 ? (
                     <button 
                        onClick={handleSubmit}
-                       className="bg-accent text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-orange-400 transition-all flex items-center gap-2"
+                       disabled={isSubmitting}
+                       className="bg-accent text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:bg-orange-400 transition-all flex items-center gap-2 disabled:opacity-70"
                     >
-                       ส่งคำตอบ <CheckCircle2 />
+                       {isSubmitting ? <Loader2 className="animate-spin"/> : <><CheckCircle2 /> ส่งคำตอบ</>}
                     </button>
                 ) : (
                     <button 

@@ -49,7 +49,38 @@ export const MOCK_ANNOUNCEMENTS: Announcement[] = [
   { id: 'AN03', title: 'ส่งงานสมุดบันทึก', content: 'อย่าลืมส่งสมุดบันทึกสุขภาพภายในวันศุกร์นี้ที่โต๊ะครู', gradeLevel: 5, date: '2024-12-15', type: 'general' }
 ];
 
-export const MOCK_QUIZZES: Quiz[] = [];
+// Add Sample Quizzes so the system isn't empty on start
+export const MOCK_QUIZZES: Quiz[] = [
+  {
+    id: 'Q_MOCK_01',
+    title: 'ทดสอบหลังเรียน: ระบบย่อยอาหาร',
+    unit: 'ระบบร่างกาย',
+    gradeLevel: 5,
+    questions: [
+      { id: 'q1', text: 'อวัยวะใดทำหน้าที่ย่อยอาหารทางเคมีเป็นด่านแรก?', type: 'multiple_choice', choices: ['ปาก', 'กระเพาะอาหาร', 'ลำไส้เล็ก', 'ตับ'], correctAnswer: 0, points: 1 },
+      { id: 'q2', text: 'น้ำดีผลิตจากอวัยวะใด?', type: 'multiple_choice', choices: ['ตับอ่อน', 'ตับ', 'ถุงน้ำดี', 'กระเพาะอาหาร'], correctAnswer: 1, points: 1 },
+      { id: 'q3', text: 'การเคี้ยวอาหารให้ละเอียดช่วยให้ระบบย่อยอาหารทำงานง่ายขึ้น', type: 'true_false', correctAnswer: 'true', points: 1 }
+    ],
+    timeLimit: 15,
+    totalScore: 3,
+    status: 'published',
+    createdDate: '2024-12-14'
+  },
+  {
+    id: 'Q_MOCK_02',
+    title: 'ทดสอบความรู้: กีฬาฟุตบอล',
+    unit: 'กีฬาพื้นฐาน',
+    gradeLevel: 6,
+    questions: [
+      { id: 'q1', text: 'ผู้รักษาประตูสามารถใช้มือจับลูกบอลได้ในเขตใด?', type: 'multiple_choice', choices: ['วงกลมกลางสนาม', 'เขตโทษ', 'มุมธง', 'ทั่วสนาม'], correctAnswer: 1, points: 1 },
+      { id: 'q2', text: 'การทุ่มลูกบอล ต้องใช้มือทั้งสองข้างทุ่มข้ามศีรษะ', type: 'true_false', correctAnswer: 'true', points: 1 }
+    ],
+    timeLimit: 10,
+    totalScore: 2,
+    status: 'published',
+    createdDate: '2024-12-14'
+  }
+];
 
 // Generate some mock attendance history
 const generateMockAttendance = (): Attendance[] => {

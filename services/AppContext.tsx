@@ -3,12 +3,8 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, Props
 import { User, Assignment, Score, StudentData, Role, Attendance, HealthRecord, Announcement, Quiz, QuizResult, ToastNotification } from '../types';
 import { MOCK_USERS, MOCK_STUDENTS, INITIAL_ASSIGNMENTS, INITIAL_SCORES, INITIAL_ATTENDANCE, MOCK_ANNOUNCEMENTS, MOCK_QUIZZES } from '../constants';
 
-// *** Google Apps Script Web App URL ***
+// *** REPLACE THIS WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL ***
 const API_URL = 'https://script.google.com/macros/s/AKfycbwEz7qB2vwlu6tTVx-CJrs1yFBPwbefN1Xlo1TLuG7G_JxB0Vxwknfvuc8EBuGamw-X/exec'; 
-
-// *** Google Sheet Config for Direct Login ***
-const USERS_SPREADSHEET_ID = '192jkPyqJHzlvaTqsI_zYW1z6exjoLBopwAz3NbGyxvc';
-const USERS_SHEET_NAME = 'Users';
 
 interface AttendanceStats {
   present: number;
@@ -66,6 +62,32 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Helper to clean up Classroom strings (handle Dates, etc)
+const normalizeClassroom = (val: any, grade: number): string => {
+  let str = String(val || '').trim();
+  
+  // Remove single quote if present (from GAS backend force-string hack)
+  if (str.startsWith("'")) str = str.substring(1);
+
+  // If it matches standard "5/1", return it
+  if (/^[56]\/[1-9]$/.test(str)) return str;
+
+  // If it's a date-like string (e.g. ISO date or "05/01/2025")
+  if (str.includes('-') || str.includes('/')) {
+      const date = new Date(str);
+      if (!isNaN(date.getTime())) {
+          // It's a valid date. Try to reconstruct Room from Day/Month.
+          const d = date.getDate();
+          const m = date.getMonth() + 1;
+          
+          // Heuristic: Check if Month or Day matches Grade
+          if (m === grade && d < 10) return `${grade}/${d}`;
+          if (d === grade && m < 10) return `${grade}/${m}`;
+      }
+  }
+  return str;
+};
+
 export const AppProvider = ({ children }: PropsWithChildren) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -82,11 +104,12 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   // Refs to hold previous state for comparison during refresh
   const prevScoresRef = useRef<Score[]>([]);
 
-  // Helper to call API
+  // Helper to call API with CORS handling (using no-cors text/plain for Apps Script simple requests)
   const callApi = async (action: string, payload: any = {}) => {
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
+        // Use text/plain to avoid CORS preflight options request issues with GAS
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, ...payload }),
       });
@@ -101,7 +124,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const showToast = (title: string, message: string, type: 'success' | 'info' | 'error' = 'info') => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, title, message, type }]);
-    // Auto remove
     setTimeout(() => removeToast(id), 5000);
   };
 
@@ -114,65 +136,33 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     const res = await callApi('getData');
     
     if (res.status === 'success') {
-      // Clean Students
-      const cleanStudents = (res.students || []).map((s: any) => {
-         let grade = Number(s.gradeLevel);
-         let cls = s.classroom ? String(s.classroom).trim() : '';
-
-         if (cls.length > 5 && !isNaN(Date.parse(cls)) && (cls.includes('-') || cls.includes('T'))) {
-            const date = new Date(cls);
-            const day = date.getDate();
-            const month = date.getMonth() + 1;
-            
-            if ((day === 5 || day === 6) && month <= 12) {
-               cls = `${day}/${month}`;
-            }
-            else if ((month === 5 || month === 6) && day <= 12) {
-               cls = `${month}/${day}`;
-            }
-         }
-
-         return {
-            ...s,
-            studentId: String(s.studentId || ''), 
-            gradeLevel: grade,
-            classroom: cls
-         };
-      });
-      
-      cleanStudents.sort((a: StudentData, b: StudentData) => {
-          return String(a.classroom).localeCompare(String(b.classroom), undefined, { numeric: true }) || 
-                 String(a.studentId).localeCompare(String(b.studentId), undefined, { numeric: true });
-      });
-
+      // 1. Students
+      const cleanStudents = (res.students || []).map((s: any) => ({
+        ...s,
+        gradeLevel: Number(s.gradeLevel),
+        // Normalize classroom to fix Date issues from Google Sheets
+        classroom: normalizeClassroom(s.classroom, Number(s.gradeLevel))
+      }));
       setStudents(cleanStudents);
 
-      // Clean Assignments
+      // 2. Assignments
       const cleanAssignments = (res.assignments || []).map((a: any) => {
-        let cls: string[] = [];
-        if (Array.isArray(a.classrooms)) {
-          cls = a.classrooms;
-        } else if (typeof a.classrooms === 'string') {
-          try {
-            cls = JSON.parse(a.classrooms);
-          } catch (e) {
-            if (a.classrooms.includes(',')) {
-                cls = a.classrooms.split(',').map((c: string) => c.trim());
-            } else {
-                cls = [a.classrooms];
-            }
-          }
-        }
+        let cls = [];
+        try {
+           if (Array.isArray(a.classrooms)) cls = a.classrooms;
+           else if (typeof a.classrooms === 'string') cls = JSON.parse(a.classrooms);
+        } catch(e) { cls = [String(a.classrooms)]; }
+        
         return {
           ...a,
           gradeLevel: Number(a.gradeLevel),
           maxScore: Number(a.maxScore),
-          classrooms: Array.isArray(cls) ? cls : []
+          classrooms: cls
         };
       });
       setAssignments(cleanAssignments);
 
-      // Clean Scores
+      // 3. Scores
       const cleanScores = (res.scores || []).map((s: any) => ({
         ...s,
         assignmentId: String(s.assignmentId),
@@ -180,66 +170,77 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         score: (s.score === '' || s.score === null || s.score === undefined) ? null : Number(s.score)
       }));
       
-      // *** NOTIFICATION LOGIC START ***
-      // If we have previous scores and current user is Teacher, check for new submissions
+      // Notification Logic
       if (currentUser?.role === Role.TEACHER && prevScoresRef.current.length > 0) {
         cleanScores.forEach((newScore: Score) => {
-          // Find the same score record in previous data
-          const oldScore = prevScoresRef.current.find(
-            os => os.assignmentId === newScore.assignmentId && os.studentId === newScore.studentId
-          );
-
-          // Check if status changed to submitted from something else
+          const oldScore = prevScoresRef.current.find(os => os.assignmentId === newScore.assignmentId && os.studentId === newScore.studentId);
           if (newScore.status === 'submitted' && oldScore?.status !== 'submitted') {
-             const studentName = cleanStudents.find((s: any) => s.id === newScore.studentId)?.name || 'นักเรียน';
-             const assignmentTitle = cleanAssignments.find((a: any) => a.id === newScore.assignmentId)?.title || 'งาน';
-             showToast(
-               'มีการส่งงานใหม่', 
-               `${studentName} ส่งงาน "${assignmentTitle}" แล้ว`, 
-               'info'
-             );
+             const sName = cleanStudents.find((s: any) => s.id === newScore.studentId)?.name || 'นักเรียน';
+             showToast('ส่งงานใหม่', `${sName} ส่งงานแล้ว`, 'info');
           }
         });
       }
-      // Update ref
       prevScoresRef.current = cleanScores;
-      // *** NOTIFICATION LOGIC END ***
-
       setScores(cleanScores);
 
-      // Clean Attendance
-      const cleanAttendance = (res.attendance || []).map((a: any) => ({
-         ...a,
-         date: typeof a.date === 'string' ? a.date.split('T')[0] : a.date
-      }));
-      setAttendance(cleanAttendance);
+      // 4. Attendance
+      setAttendance(res.attendance || []);
 
-      // Clean Health Records
-      const cleanHealth = (res.healthRecords || []).map((h: any) => ({
-        ...h,
-        weight: Number(h.weight),
-        height: Number(h.height),
-        bmi: Number(h.bmi)
-      }));
-      setHealthRecords(cleanHealth);
+      // 5. Health
+      setHealthRecords(res.healthRecords || []);
 
-      if (res.announcements && Array.isArray(res.announcements)) {
-         setAnnouncements(res.announcements);
-      } else {
-         if (announcements.length === 0) setAnnouncements(MOCK_ANNOUNCEMENTS);
+      // 6. Announcements
+      if (res.announcements) setAnnouncements(res.announcements);
+      
+      // 7. Quizzes (Safe Parse)
+      if (res.quizzes) {
+         setQuizzes(res.quizzes.map((q: any) => {
+             let questions = [];
+             try {
+                if (typeof q.questions === 'string') {
+                    // Sometimes double encoded if saved incorrectly before
+                    questions = JSON.parse(q.questions);
+                    if (typeof questions === 'string') questions = JSON.parse(questions);
+                } else {
+                    questions = q.questions;
+                }
+             } catch(e) { questions = []; }
+
+             return {
+                 ...q,
+                 gradeLevel: Number(q.gradeLevel),
+                 timeLimit: Number(q.timeLimit),
+                 totalScore: Number(q.totalScore),
+                 questions: Array.isArray(questions) ? questions : [],
+                 status: q.status || 'published' // Default to published to ensure they show up
+             };
+         }));
       }
 
-      // Clean Quizzes
-      if (res.quizzes && Array.isArray(res.quizzes)) {
-         setQuizzes(res.quizzes.map((q: any) => ({
-           ...q,
-           questions: typeof q.questions === 'string' ? JSON.parse(q.questions) : q.questions
-         })));
-      } else {
-         if (quizzes.length === 0) setQuizzes(MOCK_QUIZZES);
+      // 8. Quiz Results (Safe Parse)
+      if (res.quizResults) {
+         setQuizResults(res.quizResults.map((r: any) => {
+             let answers = {};
+             try {
+                if (typeof r.answers === 'string') {
+                     answers = JSON.parse(r.answers);
+                     if (typeof answers === 'string') answers = JSON.parse(answers);
+                } else {
+                     answers = r.answers;
+                }
+             } catch(e) { answers = {}; }
+             
+             return {
+                 ...r,
+                 score: Number(r.score),
+                 totalScore: Number(r.totalScore),
+                 answers: answers || {}
+             };
+         }));
       }
 
     } else if (res.status === 'mock_fallback') {
+      // Load Mock Data if API fails
       if (students.length === 0) setStudents(MOCK_STUDENTS);
       if (assignments.length === 0) setAssignments(INITIAL_ASSIGNMENTS);
       if (scores.length === 0) {
@@ -264,7 +265,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const login = async (username: string, password?: string, role: Role = Role.TEACHER) => {
     setIsLoading(true);
 
-    // 1. Attempt Login via Real API
+    // Try API Login
     const res = await callApi('login', { username, password, role });
 
     if (res.status === 'success' && res.user) {
@@ -275,7 +276,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
        return true;
     }
 
-    // 2. Mock Fallback (Only if API fails due to network/error, not invalid creds)
+    // Fallback to Mock Data if API fails (Demo mode)
     if (res.status === 'mock_fallback') {
         if (role === Role.TEACHER) {
           const foundTeacher = MOCK_USERS.find(u => u.username === username && u.role === Role.TEACHER);
@@ -287,9 +288,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
             return true;
           }
         } else if (role === Role.STUDENT) {
-          // Check MOCK students if API is down
           const foundStudent = MOCK_STUDENTS.find(s => s.studentId === username);
-          
           if (foundStudent) {
             const user: User = {
                id: foundStudent.id,
@@ -318,19 +317,16 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     setAssignments([]);
     setStudents([]);
     setScores([]);
-    prevScoresRef.current = [];
     setAttendance([]);
-    setHealthRecords([]);
-    setAnnouncements([]);
     setQuizzes([]);
     setQuizResults([]);
-    setToasts([]);
   };
 
+  // --- CRUD Wrappers ---
   const addAssignment = async (assignment: Assignment) => {
     setAssignments(prev => [...prev, assignment]);
     await callApi('addAssignment', { payload: assignment });
-    showToast('สำเร็จ', 'สร้างชิ้นงานเรียบร้อยแล้ว', 'success');
+    showToast('สำเร็จ', 'สร้างชิ้นงานแล้ว', 'success');
   };
 
   const deleteAssignment = async (id: string) => {
@@ -342,16 +338,14 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const updateScore = async (newScore: Score) => {
     setScores(prev => {
       const existing = prev.findIndex(s => s.assignmentId === newScore.assignmentId && s.studentId === newScore.studentId);
-      let updated;
       if (existing >= 0) {
-        updated = [...prev];
-        updated[existing] = newScore;
-      } else {
-        updated = [...prev, newScore];
+        const up = [...prev];
+        up[existing] = newScore;
+        return up;
       }
-      prevScoresRef.current = updated; // Update ref locally to avoid self-notification
-      return updated;
+      return [...prev, newScore];
     });
+    // No await here for faster UI response
     callApi('updateScore', { payload: newScore });
   };
 
@@ -363,11 +357,10 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
             if (idx >= 0) newScores[idx] = newScore;
             else newScores.push(newScore);
         });
-        prevScoresRef.current = newScores; // Update ref locally
         return newScores;
      });
      await callApi('updateScoreBulk', { payload: scoresData });
-     showToast('สำเร็จ', 'บันทึกคะแนนเรียบร้อยแล้ว', 'success');
+     showToast('สำเร็จ', 'บันทึกคะแนนทั้งหมดแล้ว', 'success');
   };
 
   const getStudentScore = (studentId: string, assignmentId: string): number | string => {
@@ -378,108 +371,109 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const addStudent = async (student: StudentData) => {
     setStudents(prev => [...prev, student]);
     await callApi('addStudent', { payload: student });
-    showToast('สำเร็จ', 'เพิ่มข้อมูลนักเรียนแล้ว', 'success');
+    showToast('สำเร็จ', 'เพิ่มนักเรียนแล้ว', 'success');
   };
 
   const updateStudent = async (student: StudentData) => {
     setStudents(prev => prev.map(s => s.id === student.id ? student : s));
     await callApi('updateStudent', { payload: student });
-    showToast('สำเร็จ', 'อัปเดตข้อมูลนักเรียนแล้ว', 'success');
+    showToast('สำเร็จ', 'อัปเดตข้อมูลแล้ว', 'success');
   };
 
   const deleteStudent = async (id: string) => {
     setStudents(prev => prev.filter(s => s.id !== id));
     await callApi('deleteStudent', { id });
-    showToast('สำเร็จ', 'ลบข้อมูลนักเรียนแล้ว', 'info');
+    showToast('สำเร็จ', 'ลบข้อมูลแล้ว', 'info');
   };
 
   const markAttendance = async (studentId: string, date: string, status: 'present' | 'late' | 'leave' | 'missing', reason?: string) => {
     const id = `ATT-${studentId}-${date}`;
     const newRecord: Attendance = { id, studentId, date, status, reason };
     setAttendance(prev => {
-      const filtered = prev.filter(a => !(String(a.studentId) === String(studentId) && a.date === date));
-      return [...filtered, newRecord];
+       const filtered = prev.filter(a => !(String(a.studentId) === String(studentId) && a.date === date));
+       return [...filtered, newRecord];
     });
     callApi('markAttendance', { payload: newRecord });
   };
 
-  const markAttendanceBulk = async (data: {studentId: string, date: string, status: 'present' | 'late' | 'leave' | 'missing', reason?: string}[]) => {
-    const newRecords: Attendance[] = data.map(d => ({
+  const markAttendanceBulk = async (data: any[]) => {
+    const newRecords = data.map(d => ({
         id: `ATT-${d.studentId}-${d.date}`,
         studentId: d.studentId,
         date: d.date,
         status: d.status,
         reason: d.reason
     }));
+    
     setAttendance(prev => {
-      const updatingIds = new Set(newRecords.map(r => r.id));
-      const others = prev.filter(r => !updatingIds.has(r.id));
-      return [...others, ...newRecords];
+       const updatingIds = new Set(newRecords.map(r => r.id));
+       const others = prev.filter(r => !updatingIds.has(r.id));
+       return [...others, ...newRecords];
     });
+    
     await callApi('markAttendanceBulk', { payload: newRecords });
-    showToast('สำเร็จ', 'บันทึกเวลาเรียนเรียบร้อย', 'success');
+    showToast('สำเร็จ', 'บันทึกเวลาเรียนแล้ว', 'success');
   };
 
   const getStudentAttendanceStats = (studentId: string): AttendanceStats => {
     const records = attendance.filter(a => String(a.studentId) === String(studentId));
     const totalDays = records.length;
     if (totalDays === 0) return { present: 0, late: 0, leave: 0, missing: 0, totalDays: 0, attendanceRate: 100 };
+    
     const present = records.filter(a => a.status === 'present').length;
     const late = records.filter(a => a.status === 'late').length;
     const leave = records.filter(a => a.status === 'leave').length;
     const missing = records.filter(a => a.status === 'missing').length;
+    
     const attendanceRate = Math.round(((present + late) / totalDays) * 100);
     return { present, late, leave, missing, totalDays, attendanceRate };
   };
 
   const getDailyAttendance = (date: string, classroom: string) => {
-     const classStudents = students.filter(s => s.classroom === classroom);
-     const studentIds = classStudents.map(s => String(s.studentId));
-     return attendance.filter(a => a.date === date && studentIds.includes(String(a.studentId)));
+     const classStudents = students.filter(s => s.classroom === classroom).map(s => s.id);
+     return attendance.filter(a => a.date === date && classStudents.includes(a.studentId));
   };
 
   const updateHealthRecord = async (record: HealthRecord) => {
-    setHealthRecords(prev => {
-      const existingIndex = prev.findIndex(r => r.studentId === record.studentId);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = record;
-        return updated;
-      }
-      return [...prev, record];
-    });
-    await callApi('updateHealthRecord', { payload: record });
-    showToast('สำเร็จ', 'บันทึกข้อมูลสุขภาพแล้ว', 'success');
+     setHealthRecords(prev => {
+        const idx = prev.findIndex(r => r.studentId === record.studentId);
+        if (idx >= 0) {
+           const next = [...prev];
+           next[idx] = record;
+           return next;
+        }
+        return [...prev, record];
+     });
+     await callApi('updateHealthRecord', { payload: record });
+     showToast('สำเร็จ', 'บันทึกข้อมูลสุขภาพแล้ว', 'success');
   };
 
   const getLatestHealthRecord = (studentId: string) => {
-    return healthRecords.find(r => r.studentId === studentId);
+     return healthRecords.find(r => r.studentId === studentId);
   };
 
   const addAnnouncement = async (announcement: Announcement) => {
-    setAnnouncements(prev => [announcement, ...prev]);
-    await callApi('addAnnouncement', { payload: announcement });
-    showToast('สำเร็จ', 'สร้างประกาศแล้ว', 'success');
+     setAnnouncements(prev => [announcement, ...prev]);
+     await callApi('addAnnouncement', { payload: announcement });
+     showToast('สำเร็จ', 'ประกาศข้อความแล้ว', 'success');
   };
 
   const addQuiz = async (quiz: Quiz) => {
-    setQuizzes(prev => [...prev, quiz]);
-    // Note: For real backend, we'd need to stringify 'questions' array for sheet storage
-    await callApi('addQuiz', { payload: quiz });
-    showToast('สำเร็จ', 'สร้างแบบทดสอบแล้ว', 'success');
+     setQuizzes(prev => [...prev, quiz]);
+     await callApi('addQuiz', { payload: quiz });
+     showToast('สำเร็จ', 'สร้างแบบทดสอบแล้ว', 'success');
   };
 
   const deleteQuiz = async (id: string) => {
-    setQuizzes(prev => prev.filter(q => q.id !== id));
-    await callApi('deleteQuiz', { id });
-    showToast('สำเร็จ', 'ลบแบบทดสอบแล้ว', 'info');
+     setQuizzes(prev => prev.filter(q => q.id !== id));
+     await callApi('deleteQuiz', { id });
+     showToast('สำเร็จ', 'ลบแบบทดสอบแล้ว', 'info');
   };
 
   const submitQuiz = async (result: QuizResult) => {
-    setQuizResults(prev => [...prev, result]);
-    await callApi('submitQuiz', { payload: result });
-    // This is primarily for the student side
-    // Teacher notification handled via polling in refreshData
+     setQuizResults(prev => [...prev, result]);
+     await callApi('submitQuiz', { payload: result });
+     showToast('สำเร็จ', 'ส่งคำตอบแล้ว', 'success');
   };
 
   return (

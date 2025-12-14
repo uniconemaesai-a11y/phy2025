@@ -3,13 +3,13 @@ import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
 import { Quiz, Question, QuestionType } from '../types';
-import { Plus, Trash2, Edit, Save, BrainCircuit, X, Check, Eye, FileText, ClipboardList, HelpCircle } from 'lucide-react';
+import { Plus, Trash2, Save, BrainCircuit, X, ClipboardList, HelpCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 export const ManageQuizzes = () => {
   const { quizzes, addQuiz, deleteQuiz } = useApp();
   const [filterGrade, setFilterGrade] = useState<5 | 6>(5);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewingQuiz, setViewingQuiz] = useState<Quiz | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // New Quiz Form State
   const [quizForm, setQuizForm] = useState<Partial<Quiz>>({
@@ -32,7 +32,7 @@ export const ManageQuizzes = () => {
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [bulkText, setBulkText] = useState('');
 
-  const filteredQuizzes = quizzes.filter(q => q.gradeLevel === filterGrade);
+  const filteredQuizzes = quizzes.filter(q => Number(q.gradeLevel) === filterGrade);
 
   const handleAddQuestion = () => {
     if (!currentQuestion.text) return;
@@ -63,23 +63,19 @@ export const ManageQuizzes = () => {
 
   const handleBulkAdd = () => {
     const questions: Question[] = [];
-    // Split by double newlines or at least 2 newlines to separate questions
     const blocks = bulkText.split(/\n\s*\n/);
     
     blocks.forEach(block => {
         const lines = block.split('\n').map(l => l.trim()).filter(l => l);
-        if (lines.length < 2) return; // Need at least question and answer logic
+        if (lines.length < 2) return;
 
-        let text = lines[0];
-        // Clean leading numbering (e.g. "1. ", "1)")
-        text = text.replace(/^\d+[\.|)]\s*/, '');
-
+        let text = lines[0].replace(/^\d+[\.|)]\s*/, '');
         let type: QuestionType = 'multiple_choice';
         let choices: string[] = ['', '', '', ''];
         let correctAnswer: string | number = 0;
         let points = 1;
 
-        // Try to find Answer line
+        // Find Answer
         const ansLineIndex = lines.findIndex(l => l.match(/^(Ans|Answer|เฉลย|Correct|ตอบ):/i));
         if (ansLineIndex > -1) {
              const ansStr = lines[ansLineIndex].split(':')[1].trim().toUpperCase();
@@ -90,21 +86,16 @@ export const ManageQuizzes = () => {
                  type = 'true_false';
                  correctAnswer = 'false';
              } else {
-                 // Assume A, B, C, D
                  const map: Record<string, number> = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, '1': 0, '2': 1, '3': 2, '4': 3, 'ก': 0, 'ข': 1, 'ค': 2, 'ง': 3 };
-                 // Extract just the first valid character
                  const match = ansStr.match(/[A-D1-4ก-ง]/);
-                 if (match) {
-                    correctAnswer = map[match[0]] ?? 0;
-                 }
+                 if (match) correctAnswer = map[match[0]] ?? 0;
              }
         }
 
-        // Try to find choices
+        // Find Choices
         if (type === 'multiple_choice') {
             const choiceLines = lines.filter(l => l.match(/^[A-D1-4ก-ง][\.|)]/i));
             if (choiceLines.length > 0) {
-                // Map based on letter
                 const tempChoices = ['','','',''];
                 choiceLines.forEach(l => {
                     if (l.match(/^(A|1|ก)[\.|)]/i)) tempChoices[0] = l.replace(/^(A|1|ก)[\.|)]\s*/i, '');
@@ -113,16 +104,11 @@ export const ManageQuizzes = () => {
                     if (l.match(/^(D|4|ง)[\.|)]/i)) tempChoices[3] = l.replace(/^(D|4|ง)[\.|)]\s*/i, '');
                 });
                 choices = tempChoices;
-            } else {
-                // If no prefixes found but lines exist between Q and Ans
-                // This is a loose fallback: take lines 1 to 4
-                if (lines.length >= 5 && ansLineIndex >= 5) {
-                     choices = lines.slice(1, 5);
-                }
+            } else if (lines.length >= 5 && ansLineIndex >= 5) {
+                 choices = lines.slice(1, 5);
             }
         }
         
-        // Points
         const pointLine = lines.find(l => l.match(/^(Point|Score|คะแนน):/i));
         if (pointLine) {
             const ptMatch = pointLine.match(/\d+/);
@@ -167,6 +153,7 @@ export const ManageQuizzes = () => {
         return;
     }
 
+    setIsSaving(true);
     const totalScore = quizForm.questions.reduce((acc, q) => acc + q.points, 0);
 
     const newQuiz: Quiz = {
@@ -182,6 +169,7 @@ export const ManageQuizzes = () => {
     };
 
     await addQuiz(newQuiz);
+    setIsSaving(false);
     setIsModalOpen(false);
     setQuizForm({ gradeLevel: filterGrade, unit: '', title: '', timeLimit: 10, questions: [] });
   };
@@ -232,9 +220,9 @@ export const ManageQuizzes = () => {
                      <span className="block text-xs text-gray-400">เวลา</span>
                      <span className="font-bold">{quiz.timeLimit} นาที</span>
                   </div>
-                  <div>
+                  <div className="col-span-2">
                      <span className="block text-xs text-gray-400">คะแนนเต็ม</span>
-                     <span className="font-bold">{quiz.totalScore} คะแนน</span>
+                     <span className="font-bold text-accent">{quiz.totalScore} คะแนน</span>
                   </div>
                </div>
             </Card>
@@ -245,10 +233,9 @@ export const ManageQuizzes = () => {
                  <BrainCircuit size={40} className="text-gray-300" />
                </div>
                <h3 className="text-lg font-bold text-gray-600">ยังไม่มีแบบทดสอบ</h3>
-               <p className="text-sm text-gray-400 mt-1 mb-4">เริ่มสร้างแบบทดสอบจริงชุดแรกของคุณได้เลย</p>
                <button 
                  onClick={() => { setQuizForm(prev => ({...prev, gradeLevel: filterGrade})); setIsModalOpen(true); }}
-                 className="text-accent font-bold hover:underline"
+                 className="text-accent font-bold hover:underline mt-2"
                >
                  + สร้างแบบทดสอบใหม่
                </button>
@@ -261,17 +248,17 @@ export const ManageQuizzes = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl relative z-10 flex flex-col max-h-[90vh]">
-              {/* Modal Header */}
+              {/* Header */}
               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
                  <h3 className="text-xl font-bold font-['Mitr']">สร้างแบบทดสอบใหม่</h3>
                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
               </div>
 
-              {/* Modal Body */}
+              {/* Body */}
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                 {/* Quiz Info */}
+                 {/* Metadata */}
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="col-span-2">
                        <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อแบบทดสอบ</label>
                        <input 
                           type="text" 
@@ -317,27 +304,48 @@ export const ManageQuizzes = () => {
 
                  <hr className="border-gray-100" />
 
-                 {/* Questions List */}
+                 {/* Questions */}
                  <div>
-                    <h4 className="font-bold text-gray-700 mb-3">รายการคำถาม ({quizForm.questions?.length})</h4>
+                    <h4 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                        <span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full">{quizForm.questions?.length}</span>
+                        รายการคำถาม
+                    </h4>
+                    
                     <div className="space-y-3 mb-6">
                        {quizForm.questions?.map((q, idx) => (
-                          <div key={idx} className="bg-gray-50 p-4 rounded-xl flex justify-between items-start border border-gray-100">
-                             <div>
-                                <span className="font-bold text-accent mr-2">{idx + 1}.</span>
-                                <span className="font-medium">{q.text}</span>
-                                <div className="text-xs text-gray-400 mt-1 ml-5">
-                                   {q.type === 'multiple_choice' ? 'ปรนัย 4 ตัวเลือก' : 'ถูก-ผิด'} • {q.points} คะแนน
+                          <div key={idx} className="bg-gray-50 p-4 rounded-xl border border-gray-200 relative group">
+                             <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={() => handleRemoveQuestion(idx)} className="text-gray-400 hover:text-red-500"><Trash2 size={16}/></button>
+                             </div>
+                             <div className="flex gap-2">
+                                <span className="font-bold text-accent">{idx + 1}.</span>
+                                <div className="flex-1">
+                                   <p className="font-medium text-gray-800">{q.text}</p>
+                                   <div className="mt-2 text-sm text-gray-500 grid grid-cols-2 gap-2">
+                                       {q.type === 'multiple_choice' ? (
+                                           q.choices?.map((c, i) => (
+                                               <div key={i} className={`flex items-center gap-2 ${i === q.correctAnswer ? 'text-green-600 font-bold' : ''}`}>
+                                                   <span className="w-4 h-4 border rounded-full flex items-center justify-center text-[8px] border-current">
+                                                       {['A','B','C','D'][i]}
+                                                   </span>
+                                                   {c} {i === q.correctAnswer && <CheckCircle2 size={12}/>}
+                                               </div>
+                                           ))
+                                       ) : (
+                                           <span className={String(q.correctAnswer) === 'true' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
+                                               เฉลย: {String(q.correctAnswer) === 'true' ? 'ถูก' : 'ผิด'}
+                                           </span>
+                                       )}
+                                   </div>
                                 </div>
                              </div>
-                             <button onClick={() => handleRemoveQuestion(idx)} className="text-gray-400 hover:text-red-500"><Trash2 size={16}/></button>
                           </div>
                        ))}
-                       {quizForm.questions?.length === 0 && <p className="text-gray-400 text-sm text-center">ยังไม่มีคำถาม</p>}
+                       {quizForm.questions?.length === 0 && <p className="text-gray-400 text-sm text-center py-4 bg-gray-50 rounded-xl border border-dashed">ยังไม่มีคำถาม</p>}
                     </div>
 
                     {/* Add Question Box */}
-                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100 shadow-sm">
                        <div className="flex gap-2 mb-4 border-b border-blue-200 pb-2">
                           <button 
                             onClick={() => setIsBulkMode(false)}
@@ -349,7 +357,7 @@ export const ManageQuizzes = () => {
                             onClick={() => setIsBulkMode(true)}
                             className={`px-3 py-1 rounded-lg text-sm font-bold transition-all ${isBulkMode ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-600 hover:bg-blue-100'}`}
                           >
-                            <ClipboardList size={14} className="inline mr-1"/> เพิ่มหลายข้อ (Bulk Import)
+                            <ClipboardList size={14} className="inline mr-1"/> เพิ่มหลายข้อ (Bulk)
                           </button>
                        </div>
 
@@ -381,7 +389,7 @@ export const ManageQuizzes = () => {
                               </div>
 
                               {currentQuestion.type === 'multiple_choice' && (
-                                 <div className="grid grid-cols-2 gap-2">
+                                 <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-gray-200">
                                     {[0, 1, 2, 3].map(i => (
                                        <div key={i} className="flex items-center gap-2">
                                           <input 
@@ -389,11 +397,13 @@ export const ManageQuizzes = () => {
                                              name="correct" 
                                              checked={currentQuestion.correctAnswer === i}
                                              onChange={() => setCurrentQuestion({...currentQuestion, correctAnswer: i})}
+                                             className="accent-green-600 w-4 h-4 cursor-pointer"
+                                             title="คลิกเพื่อเลือกเป็นข้อที่ถูก"
                                           />
                                           <input 
                                              type="text" 
-                                             className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm outline-none"
-                                             placeholder={`ตัวเลือก ${i+1}`}
+                                             className={`w-full border rounded-lg px-2 py-1 text-sm outline-none transition-colors ${currentQuestion.correctAnswer === i ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}
+                                             placeholder={`ตัวเลือก ${['ก','ข','ค','ง'][i]}`}
                                              value={currentQuestion.choices?.[i] || ''}
                                              onChange={e => {
                                                 const newChoices = [...(currentQuestion.choices || [])];
@@ -408,23 +418,23 @@ export const ManageQuizzes = () => {
 
                               {currentQuestion.type === 'true_false' && (
                                  <div className="flex gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-lg border">
+                                    <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-4 py-2 rounded-lg border transition-all ${String(currentQuestion.correctAnswer) === 'true' ? 'bg-green-100 border-green-300 text-green-700 font-bold' : 'bg-white'}`}>
                                        <input 
                                           type="radio" 
                                           name="tf" 
                                           value="true"
                                           checked={String(currentQuestion.correctAnswer) === 'true'}
                                           onChange={() => setCurrentQuestion({...currentQuestion, correctAnswer: 'true'})}
-                                       /> ถูก
+                                       /> ถูก (True)
                                     </label>
-                                    <label className="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-lg border">
+                                    <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-4 py-2 rounded-lg border transition-all ${String(currentQuestion.correctAnswer) === 'false' ? 'bg-red-100 border-red-300 text-red-700 font-bold' : 'bg-white'}`}>
                                        <input 
                                           type="radio" 
                                           name="tf" 
                                           value="false"
                                           checked={String(currentQuestion.correctAnswer) === 'false'}
                                           onChange={() => setCurrentQuestion({...currentQuestion, correctAnswer: 'false'})}
-                                       /> ผิด
+                                       /> ผิด (False)
                                     </label>
                                  </div>
                               )}
@@ -466,7 +476,7 @@ Answer: True
                                  disabled={!bulkText.trim()}
                                  className="w-full bg-blue-600 text-white py-2 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                               >
-                                 <FileText size={16} /> ประมวลผลและเพิ่มข้อสอบ
+                                 ประมวลผลและเพิ่มข้อสอบ
                               </button>
                            </div>
                        )}
@@ -474,10 +484,17 @@ Answer: True
                  </div>
               </div>
 
-              {/* Modal Footer */}
+              {/* Footer */}
               <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl flex justify-end gap-3">
                  <button onClick={() => setIsModalOpen(false)} className="px-5 py-2 rounded-xl text-gray-500 hover:bg-gray-100">ยกเลิก</button>
-                 <button onClick={handleSubmitQuiz} className="px-6 py-2 rounded-xl bg-accent text-white font-bold shadow-md hover:bg-orange-400">บันทึกแบบทดสอบ</button>
+                 <button 
+                   onClick={handleSubmitQuiz} 
+                   disabled={isSaving}
+                   className="px-6 py-2 rounded-xl bg-accent text-white font-bold shadow-md hover:bg-orange-400 flex items-center gap-2 disabled:opacity-50"
+                 >
+                   {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={18} />} 
+                   {isSaving ? 'กำลังบันทึก...' : 'บันทึกแบบทดสอบ'}
+                 </button>
               </div>
            </div>
         </div>
