@@ -1,4 +1,4 @@
-import { User, Role, StudentData, Assignment, Score, Attendance } from './types';
+import { User, Role, StudentData, Assignment, Score, Attendance, Announcement, Quiz, QuizResult } from './types';
 
 export const MOCK_USERS: User[] = [
   { id: 'T001', username: 'kai', name: 'Krukai', role: Role.TEACHER },
@@ -40,6 +40,46 @@ export const INITIAL_SCORES: Score[] = [
   { assignmentId: 'A002', studentId: 'S001', score: 42, status: 'submitted' },
   // S121 Grade 6
   { assignmentId: 'A003', studentId: 'S121', score: null, status: 'pending' },
+];
+
+export const MOCK_ANNOUNCEMENTS: Announcement[] = [
+  { id: 'AN01', title: 'เตรียมตัวสอบเก็บคะแนน', content: 'ขอให้นักเรียนเตรียมชุดพละให้พร้อมสำหรับการทดสอบสมรรถภาพในสัปดาห์หน้า', gradeLevel: 5, date: '2024-12-10', type: 'urgent' },
+  { id: 'AN02', title: 'กิจกรรมกีฬาสี', content: 'จะมีการแบ่งสีในวันศุกร์นี้ ขอให้ทุกคนเข้าร่วมกิจกรรมที่ลานอเนกประสงค์', gradeLevel: 6, date: '2024-12-12', type: 'event' },
+  { id: 'AN03', title: 'ส่งงานสมุดบันทึก', content: 'อย่าลืมส่งสมุดบันทึกสุขภาพภายในวันศุกร์นี้ที่โต๊ะครู', gradeLevel: 5, date: '2024-12-15', type: 'general' }
+];
+
+export const MOCK_QUIZZES: Quiz[] = [
+  {
+    id: 'Q001',
+    title: 'แบบทดสอบเรื่อง ระบบย่อยอาหาร',
+    unit: 'ระบบร่างกาย',
+    gradeLevel: 5,
+    timeLimit: 15,
+    totalScore: 5,
+    status: 'published',
+    createdDate: '2024-12-01',
+    questions: [
+      { id: 'q1', text: 'อวัยวะใดทำหน้าที่ย่อยอาหารเป็นอันดับแรก', type: 'multiple_choice', choices: ['ปาก', 'กระเพาะอาหาร', 'ลำไส้เล็ก', 'หลอดอาหาร'], correctAnswer: 0, points: 1 },
+      { id: 'q2', text: 'ลำไส้เล็กมีหน้าที่ดูดซึมสารอาหาร', type: 'true_false', correctAnswer: 'true', points: 1 },
+      { id: 'q3', text: 'อาหารประเภทใดให้พลังงานหลักแก่ร่างกาย', type: 'multiple_choice', choices: ['โปรตีน', 'คาร์โบไฮเดรต', 'วิตามิน', 'เกลือแร่'], correctAnswer: 1, points: 1 },
+      { id: 'q4', text: 'การเคี้ยวอาหารให้ละเอียดช่วยระบบย่อยอาหารทำงานง่ายขึ้น', type: 'true_false', correctAnswer: 'true', points: 1 },
+      { id: 'q5', text: 'น้ำย่อยในกระเพาะอาหารมีฤทธิ์เป็นอะไร', type: 'multiple_choice', choices: ['กรด', 'เบส', 'กลาง', 'ไม่มีข้อถูก'], correctAnswer: 0, points: 1 },
+    ]
+  },
+  {
+    id: 'Q002',
+    title: 'กฎกติกาฟุตซอลเบื้องต้น',
+    unit: 'กีฬา',
+    gradeLevel: 6,
+    timeLimit: 20,
+    totalScore: 10,
+    status: 'published',
+    createdDate: '2024-12-05',
+    questions: [
+      { id: 'q1', text: 'กีฬาฟุตซอลมีผู้เล่นฝั่งละกี่คน', type: 'multiple_choice', choices: ['5 คน', '6 คน', '7 คน', '11 คน'], correctAnswer: 0, points: 2 },
+      { id: 'q2', text: 'ผู้รักษาประตูสามารถใช้มือรับบอลนอกเขตโทษได้', type: 'true_false', correctAnswer: 'false', points: 2 },
+    ]
+  }
 ];
 
 // Generate some mock attendance history

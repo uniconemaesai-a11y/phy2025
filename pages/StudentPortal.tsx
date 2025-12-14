@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
-import { CheckCircle2, Clock, BarChart3, AlertCircle, ChevronRight, Check } from 'lucide-react';
+import { CheckCircle2, Clock, BarChart3, AlertCircle, ChevronRight, Check, Award, Flame, Heart, Megaphone, BrainCircuit, Play } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const StudentPortal = () => {
-  const { currentUser, assignments, scores, getStudentScore } = useApp();
+  const { currentUser, assignments, scores, getStudentScore, getStudentAttendanceStats, getLatestHealthRecord, announcements, quizzes, quizResults } = useApp();
   const [confirmed, setConfirmed] = useState(false);
+  const navigate = useNavigate();
 
   if (!currentUser || currentUser.role !== 'STUDENT') return <div>Access Denied</div>;
 
@@ -31,12 +33,54 @@ export const StudentPortal = () => {
 
   const gradeColor = currentUser.gradeLevel === 5 ? 'text-gr5' : 'text-gr6';
   const gradeBg = currentUser.gradeLevel === 5 ? 'bg-gr5' : 'bg-gr6';
+  const buttonBg = currentUser.gradeLevel === 5 ? 'bg-gr5' : 'bg-gr6';
+  
+  // Get Announcements
+  const myAnnouncements = announcements
+     .filter(a => a.gradeLevel === currentUser.gradeLevel)
+     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+     .slice(0, 3);
+
+  // Get Quizzes
+  const myQuizzes = quizzes.filter(q => q.gradeLevel === currentUser.gradeLevel && q.status === 'published');
 
   const handleConfirm = () => {
-    // Show confirmation animation
     setConfirmed(true);
     setTimeout(() => setConfirmed(false), 3000);
   };
+
+  // Gamification Logic ...
+  const attendanceStats = getStudentAttendanceStats(currentUser.id);
+  const healthRecord = getLatestHealthRecord(currentUser.id);
+  const badges = [
+      {
+          id: 'perfect-attendance',
+          name: 'มาเรียนดีเยี่ยม',
+          icon: Award,
+          color: 'text-yellow-500',
+          bg: 'bg-yellow-100',
+          unlocked: attendanceStats.attendanceRate >= 95 && attendanceStats.totalDays > 0,
+          desc: 'เข้าเรียนเกิน 95%'
+      },
+      {
+          id: 'task-master',
+          name: 'ส่งงานครบ',
+          icon: Flame,
+          color: 'text-red-500',
+          bg: 'bg-red-100',
+          unlocked: pendingCount === 0 && myAssignments.length > 0,
+          desc: 'ไม่มีงานค้าง'
+      },
+      {
+          id: 'health-hero',
+          name: 'หุ่นดี สุขภาพดี',
+          icon: Heart,
+          color: 'text-pink-500',
+          bg: 'bg-pink-100',
+          unlocked: healthRecord?.interpretation === 'สมส่วน',
+          desc: 'BMI สมส่วน'
+      }
+  ];
 
   return (
     <div className="space-y-6 pb-20">
@@ -57,6 +101,7 @@ export const StudentPortal = () => {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Stats Cards ... */}
         <Card className="flex flex-col items-center justify-center py-8">
            <div className="p-3 bg-blue-50 text-blue-500 rounded-full mb-2"><BarChart3 /></div>
            <p className="text-gray-400 text-xs">คะแนนรวม</p>
@@ -77,6 +122,73 @@ export const StudentPortal = () => {
            <p className="text-gray-400 text-xs">ส่งแล้ว</p>
            <p className="text-2xl font-bold text-gray-800">{submittedCount}</p>
         </Card>
+      </div>
+      
+      {/* Badges ... */}
+      <Card title="เหรียญรางวัลของฉัน">
+          <div className="flex flex-wrap gap-4">
+              {badges.map(badge => (
+                  <div key={badge.id} className={`flex items-center gap-3 p-3 rounded-xl border w-full sm:w-auto ${badge.unlocked ? 'border-gray-100 bg-white shadow-sm' : 'border-dashed border-gray-200 bg-gray-50 opacity-60'}`}>
+                      <div className={`p-3 rounded-full ${badge.unlocked ? badge.bg + ' ' + badge.color : 'bg-gray-200 text-gray-400'}`}>
+                          <badge.icon size={24} />
+                      </div>
+                      <div>
+                          <p className={`font-bold text-sm ${badge.unlocked ? 'text-gray-800' : 'text-gray-400'}`}>{badge.name}</p>
+                          <p className="text-xs text-gray-400">{badge.desc}</p>
+                      </div>
+                  </div>
+              ))}
+          </div>
+      </Card>
+
+      {/* Online Quizzes Section */}
+      <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+             <div className={`p-2 rounded-lg ${gradeBg} text-white`}><BrainCircuit size={20} /></div>
+             <h3 className="text-xl font-bold font-['Mitr'] text-gray-800">แบบทดสอบออนไลน์</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {myQuizzes.map(quiz => {
+                const result = quizResults.find(r => r.quizId === quiz.id && r.studentId === currentUser.id);
+                const isDone = !!result;
+                
+                return (
+                   <div key={quiz.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden">
+                      <div className={`absolute top-0 left-0 w-1 h-full ${gradeBg}`}></div>
+                      <div className="flex justify-between items-start mb-2">
+                         <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{quiz.unit}</span>
+                         {isDone && <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1"><Check size={12}/> ทำแล้ว</span>}
+                      </div>
+                      <h4 className="font-bold text-lg text-gray-800 mb-4">{quiz.title}</h4>
+                      <div className="flex gap-4 text-sm text-gray-500 mb-4">
+                         <span className="flex items-center gap-1"><Clock size={14}/> {quiz.timeLimit} นาที</span>
+                         <span className="flex items-center gap-1"><Award size={14}/> {quiz.totalScore} คะแนน</span>
+                      </div>
+                      
+                      {isDone ? (
+                         <div className="bg-gray-50 rounded-xl p-3 text-center">
+                            <span className="text-xs text-gray-400">คะแนนที่ได้</span>
+                            <div className={`text-xl font-bold ${gradeColor}`}>{result.score} <span className="text-sm text-gray-400">/ {quiz.totalScore}</span></div>
+                         </div>
+                      ) : (
+                         <button 
+                           onClick={() => navigate(`/student/quiz/${quiz.id}`)}
+                           className={`w-full py-2.5 rounded-xl font-bold text-white shadow-md ${buttonBg} hover:opacity-90 transition-all flex items-center justify-center gap-2`}
+                         >
+                            <Play size={16} fill="currentColor" /> เริ่มทำข้อสอบ
+                         </button>
+                      )}
+                   </div>
+                );
+             })}
+             {myQuizzes.length === 0 && (
+                <div className="col-span-full py-8 text-center text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                   <BrainCircuit size={32} className="mx-auto mb-2 opacity-30" />
+                   ยังไม่มีแบบทดสอบในขณะนี้
+                </div>
+             )}
+          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -129,6 +241,7 @@ export const StudentPortal = () => {
         </div>
 
         <div className="space-y-6">
+           {/* Charts and Announcements ... */}
            <Card title="พัฒนาการเรียนรู้">
              <div className="h-48 w-full">
                <ResponsiveContainer width="100%" height="100%">
@@ -144,17 +257,24 @@ export const StudentPortal = () => {
              </div>
            </Card>
 
-           <div className={`p-6 rounded-2xl text-white ${gradeBg} shadow-lg`}>
-              <h3 className="text-lg font-bold font-['Mitr'] mb-2">ข่าวประชาสัมพันธ์</h3>
-              <ul className="space-y-3 text-sm text-white/90">
-                <li className="flex gap-2 items-start">
-                  <span className="mt-1 bg-white/30 p-1 rounded-full text-[10px]"><ChevronRight size={10} /></span>
-                  อย่าลืมเตรียมชุดพละสำหรับสัปดาห์หน้า
-                </li>
-                <li className="flex gap-2 items-start">
-                  <span className="mt-1 bg-white/30 p-1 rounded-full text-[10px]"><ChevronRight size={10} /></span>
-                  ประกาศผลสอบกลางภาควันที่ 25 นี้
-                </li>
+           <div className={`p-6 rounded-2xl text-white ${gradeBg} shadow-lg flex flex-col h-fit`}>
+              <div className="flex items-center gap-2 mb-3">
+                 <Megaphone size={20} />
+                 <h3 className="text-lg font-bold font-['Mitr']">ข่าวประชาสัมพันธ์</h3>
+              </div>
+              
+              <ul className="space-y-4 text-sm text-white/90">
+                {myAnnouncements.length > 0 ? myAnnouncements.map(a => (
+                    <li key={a.id} className="flex gap-2 items-start border-b border-white/20 pb-2 last:border-0 last:pb-0">
+                        <span className="mt-1 bg-white/30 p-1 rounded-full text-[10px] flex-shrink-0"><ChevronRight size={10} /></span>
+                        <div>
+                            <span className="font-bold block text-white">{a.title}</span>
+                            <span className="text-xs opacity-90 block">{a.content}</span>
+                        </div>
+                    </li>
+                )) : (
+                    <li className="text-center py-4 opacity-70">ไม่มีประกาศใหม่</li>
+                )}
               </ul>
            </div>
         </div>

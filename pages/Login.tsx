@@ -128,7 +128,7 @@ export const Login = () => {
         </form>
 
         <div className="mt-8 text-center text-xs text-gray-400">
-          <p>Teacher: KruPrapars Palasai </p>
+          <p>Teacher: Kru.Prapars Palasai</p>
           <p>Student: ระบุเลขประจำตัวนักเรียน ของนักเรียน </p>
         </div>
       </div>

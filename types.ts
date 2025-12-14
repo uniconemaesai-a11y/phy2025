@@ -1,3 +1,4 @@
+
 export enum Role {
   TEACHER = 'TEACHER',
   STUDENT = 'STUDENT'
@@ -55,4 +56,55 @@ export interface HealthRecord {
   height: number; // cm
   bmi: number;
   interpretation: 'ผอม' | 'สมส่วน' | 'ท้วม' | 'เริ่มอ้วน' | 'อ้วน';
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  gradeLevel: 5 | 6;
+  date: string;
+  type: 'general' | 'urgent' | 'event';
+}
+
+// --- Quiz System ---
+
+export type QuestionType = 'multiple_choice' | 'true_false';
+
+export interface Question {
+  id: string;
+  text: string;
+  type: QuestionType;
+  choices?: string[]; // For multiple choice
+  correctAnswer: string | number; // Index for MC, boolean string for TF
+  points: number;
+}
+
+export interface Quiz {
+  id: string;
+  title: string;
+  unit: string; // หน่วยการเรียนรู้
+  gradeLevel: 5 | 6;
+  questions: Question[];
+  timeLimit: number; // minutes
+  totalScore: number;
+  status: 'published' | 'draft';
+  createdDate: string;
+}
+
+export interface QuizResult {
+  id: string;
+  studentId: string;
+  quizId: string;
+  score: number;
+  totalScore: number;
+  submittedAt: string;
+  answers: Record<string, any>; // questionId: answer
+}
+
+export interface ToastNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'success' | 'info' | 'error';
 }

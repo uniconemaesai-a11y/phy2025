@@ -10,6 +10,8 @@ import { AttendanceRecording } from './pages/AttendanceRecording';
 import { StudentManagement } from './pages/StudentManagement';
 import { StudentPortal } from './pages/StudentPortal';
 import { HealthData } from './pages/HealthData';
+import { ManageQuizzes } from './pages/ManageQuizzes';
+import { TakeQuiz } from './pages/TakeQuiz';
 import { Role } from './types';
 
 // Protected Route Component
@@ -26,6 +28,13 @@ const ProtectedRoute = ({ children, allowedRole }: React.PropsWithChildren<{ all
   }
 
   return <Layout>{children}</Layout>;
+};
+
+const QuizRoute = ({ children }: React.PropsWithChildren) => {
+  const { currentUser } = useApp();
+  if (!currentUser || currentUser.role !== Role.STUDENT) return <Navigate to="/login" />;
+  // Quiz doesn't use standard layout
+  return <>{children}</>;
 };
 
 const AppRoutes = () => {
@@ -49,6 +58,11 @@ const AppRoutes = () => {
       <Route path="/teacher/scores" element={
         <ProtectedRoute allowedRole={Role.TEACHER}>
           <ScoreRecording />
+        </ProtectedRoute>
+      } />
+      <Route path="/teacher/quizzes" element={
+        <ProtectedRoute allowedRole={Role.TEACHER}>
+          <ManageQuizzes />
         </ProtectedRoute>
       } />
       <Route path="/teacher/attendance" element={
@@ -77,6 +91,13 @@ const AppRoutes = () => {
         <ProtectedRoute allowedRole={Role.STUDENT}>
           <StudentPortal /> 
         </ProtectedRoute>
+      } />
+      
+      {/* Quiz Interface (No Layout) */}
+      <Route path="/student/quiz/:quizId" element={
+        <QuizRoute>
+           <TakeQuiz />
+        </QuizRoute>
       } />
 
       {/* Default Redirect */}

@@ -1,16 +1,36 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card, StatCard } from '../components/Card';
-import { BookOpen, AlertCircle, CheckCircle2, Clock, Plus, PenTool, Users } from 'lucide-react';
+import { BookOpen, AlertCircle, CheckCircle2, Clock, Plus, PenTool, Users, Megaphone, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Link } from 'react-router-dom';
+import { Announcement } from '../types';
 
 export const TeacherDashboard = () => {
-  const { currentUser, assignments, students, scores } = useApp();
-  const [selectedGrade, setSelectedGrade] = React.useState<5 | 6>(5);
+  const { currentUser, assignments, students, scores, announcements, addAnnouncement, refreshData } = useApp();
+  const [selectedGrade, setSelectedGrade] = useState<5 | 6>(5);
+  const [isAnnounceModalOpen, setIsAnnounceModalOpen] = useState(false);
+  const [newAnnouncement, setNewAnnouncement] = useState({ title: '', content: '', type: 'general' });
+
+  // Polling for updates (Simulate Real-time Notifications)
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+        // This background refresh will trigger the toast logic in AppContext 
+        // if new submissions are found
+        refreshData(); 
+    }, 15000); // Check every 15 seconds
+
+    return () => clearInterval(intervalId);
+  }, [refreshData]);
 
   const gradeStudents = students.filter(s => s.gradeLevel === selectedGrade);
   const gradeAssignments = assignments.filter(a => a.gradeLevel === selectedGrade);
+  
+  // Get Latest Announcement for this grade
+  const latestAnnouncement = announcements
+      .filter(a => a.gradeLevel === selectedGrade)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
   // Calculate simple stats
   const totalSubmissions = scores.filter(s => s.status === 'submitted' && gradeAssignments.some(a => a.id === s.assignmentId)).length;
@@ -25,6 +45,24 @@ export const TeacherDashboard = () => {
     sent: scores.filter(s => s.assignmentId === a.id && s.status === 'submitted').length,
     total: gradeStudents.length
   }));
+
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAnnouncement.title || !newAnnouncement.content) return;
+
+    const announcement: Announcement = {
+      id: `AN-${Date.now()}`,
+      title: newAnnouncement.title,
+      content: newAnnouncement.content,
+      gradeLevel: selectedGrade,
+      date: new Date().toISOString().split('T')[0],
+      type: newAnnouncement.type as any
+    };
+
+    await addAnnouncement(announcement);
+    setIsAnnounceModalOpen(false);
+    setNewAnnouncement({ title: '', content: '', type: 'general' });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -106,13 +144,34 @@ export const TeacherDashboard = () => {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div className={`p-6 rounded-2xl text-white shadow-lg relative overflow-hidden ${selectedGrade === 5 ? 'bg-gr5' : 'bg-gr6'}`}>
-                <h3 className="text-xl font-bold font-['Mitr'] relative z-10">ประกาศล่าสุด</h3>
-                <p className="mt-2 text-white/90 relative z-10 text-sm">อย่าลืมแจ้งนักเรียนเรื่องการสอบเก็บคะแนนสัปดาห์หน้า</p>
+             {/* Dynamic Announcement Card */}
+             <div className={`p-6 rounded-2xl text-white shadow-lg relative overflow-hidden flex flex-col justify-between group ${selectedGrade === 5 ? 'bg-gr5' : 'bg-gr6'}`}>
+                <div className="relative z-10">
+                   <div className="flex justify-between items-start mb-2">
+                      <h3 className="text-xl font-bold font-['Mitr']">ประกาศล่าสุด</h3>
+                      <button 
+                        onClick={() => setIsAnnounceModalOpen(true)}
+                        className="bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
+                        title="สร้างประกาศใหม่"
+                      >
+                         <Plus size={16} />
+                      </button>
+                   </div>
+                   {latestAnnouncement ? (
+                       <>
+                          <p className="font-bold text-lg mb-1">{latestAnnouncement.title}</p>
+                          <p className="text-white/90 text-sm line-clamp-2">{latestAnnouncement.content}</p>
+                          <p className="text-xs text-white/60 mt-3">{new Date(latestAnnouncement.date).toLocaleDateString('th-TH')}</p>
+                       </>
+                   ) : (
+                       <p className="text-white/80 text-sm py-4">ยังไม่มีประกาศสำหรับระดับชั้นนี้</p>
+                   )}
+                </div>
                 <div className="absolute -right-4 -bottom-4 opacity-20">
-                  <BookOpen size={100} />
+                  <Megaphone size={100} />
                 </div>
              </div>
+
              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center items-center text-center">
                 <div className="w-12 h-12 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mb-3">
                   <Clock size={24} />
@@ -166,6 +225,58 @@ export const TeacherDashboard = () => {
           </Card>
         </div>
       </div>
+
+      {/* Create Announcement Modal */}
+      {isAnnounceModalOpen && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsAnnounceModalOpen(false)}></div>
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative z-10 animate-fade-in-up">
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                 <h3 className="text-xl font-bold font-['Mitr']">สร้างประกาศใหม่ (ป.{selectedGrade})</h3>
+                 <button onClick={() => setIsAnnounceModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
+              </div>
+              <form onSubmit={handleCreateAnnouncement} className="p-6 space-y-4">
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">หัวข้อประกาศ</label>
+                    <input 
+                       type="text" 
+                       required
+                       className="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-accent"
+                       value={newAnnouncement.title}
+                       onChange={e => setNewAnnouncement({...newAnnouncement, title: e.target.value})}
+                       placeholder="เช่น เตรียมสอบกลางภาค"
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ประเภท</label>
+                    <select
+                       className="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none"
+                       value={newAnnouncement.type}
+                       onChange={e => setNewAnnouncement({...newAnnouncement, type: e.target.value})}
+                    >
+                       <option value="general">ทั่วไป</option>
+                       <option value="urgent">ด่วน</option>
+                       <option value="event">กิจกรรม</option>
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+                    <textarea 
+                       required
+                       className="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-accent h-32"
+                       value={newAnnouncement.content}
+                       onChange={e => setNewAnnouncement({...newAnnouncement, content: e.target.value})}
+                       placeholder="รายละเอียดของประกาศ..."
+                    ></textarea>
+                 </div>
+                 <div className="pt-2 flex justify-end gap-3">
+                    <button type="button" onClick={() => setIsAnnounceModalOpen(false)} className="px-4 py-2 rounded-xl text-gray-500 hover:bg-gray-50">ยกเลิก</button>
+                    <button type="submit" className="px-6 py-2 rounded-xl bg-accent text-white font-bold shadow-lg hover:shadow-xl hover:bg-orange-400 transition-all">ประกาศ</button>
+                 </div>
+              </form>
+           </div>
+         </div>
+      )}
     </div>
   );
 };

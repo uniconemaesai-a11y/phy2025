@@ -1,11 +1,12 @@
+
 import React, { PropsWithChildren } from 'react';
 import { useApp } from '../services/AppContext';
 import { Role } from '../types';
-import { LogOut, LayoutDashboard, ClipboardList, PenTool, User as UserIcon, Menu, X, Clock, Users, HeartPulse } from 'lucide-react';
+import { LogOut, LayoutDashboard, ClipboardList, PenTool, User as UserIcon, Menu, X, Clock, Users, HeartPulse, BrainCircuit, Bell, Info, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export const Layout = ({ children }: PropsWithChildren) => {
-  const { currentUser, logout } = useApp();
+  const { currentUser, logout, toasts, removeToast } = useApp();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -15,6 +16,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
     { name: 'แดชบอร์ด', path: '/teacher', icon: LayoutDashboard },
     { name: 'จัดการชิ้นงาน', path: '/teacher/assignments', icon: ClipboardList },
     { name: 'บันทึกคะแนน', path: '/teacher/scores', icon: PenTool },
+    { name: 'คลังข้อสอบ', path: '/teacher/quizzes', icon: BrainCircuit },
     { name: 'บันทึกเวลาเรียน', path: '/teacher/attendance', icon: Clock },
     { name: 'ข้อมูลสุขภาพ', path: '/teacher/health', icon: HeartPulse },
     { name: 'จัดการนักเรียน', path: '/teacher/students', icon: Users },
@@ -113,7 +115,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 overflow-y-auto flex flex-col">
+      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 overflow-y-auto flex flex-col relative">
         <div className="max-w-6xl mx-auto w-full flex-grow">
           {children}
         </div>
@@ -126,6 +128,37 @@ export const Layout = ({ children }: PropsWithChildren) => {
             <span className="text-gray-400 text-xs border-l border-gray-300 pl-2">@2025</span>
           </div>
         </footer>
+
+        {/* Toast Container */}
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 pointer-events-none">
+          {toasts.map(toast => (
+            <div 
+              key={toast.id}
+              className={`pointer-events-auto w-80 bg-white rounded-xl shadow-xl border-l-4 p-4 flex gap-3 animate-slide-in hover:scale-[1.02] transition-transform ${
+                toast.type === 'success' ? 'border-green-500' : 
+                toast.type === 'error' ? 'border-red-500' : 'border-blue-500'
+              }`}
+            >
+               <div className={`p-2 rounded-full h-fit ${
+                 toast.type === 'success' ? 'bg-green-50 text-green-500' : 
+                 toast.type === 'error' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'
+               }`}>
+                 {toast.type === 'success' ? <CheckCircle size={20}/> :
+                  toast.type === 'error' ? <AlertTriangle size={20}/> : <Bell size={20}/>}
+               </div>
+               <div className="flex-1">
+                 <h4 className="font-bold text-gray-800 text-sm">{toast.title}</h4>
+                 <p className="text-xs text-gray-500 mt-1">{toast.message}</p>
+               </div>
+               <button 
+                 onClick={() => removeToast(toast.id)}
+                 className="text-gray-400 hover:text-gray-600 h-fit"
+               >
+                 <X size={16} />
+               </button>
+            </div>
+          ))}
+        </div>
       </main>
     </div>
   );

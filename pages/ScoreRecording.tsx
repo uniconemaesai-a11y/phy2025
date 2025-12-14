@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
-import { Download, RefreshCw, FileText, Loader2 } from 'lucide-react';
+import { Download, RefreshCw, FileText, Loader2, MoreVertical, CheckCheck } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { utils, writeFile } from 'xlsx';
+import { Score } from '../types';
 
 export const ScoreRecording = () => {
-  const { students, assignments, scores, updateScore, getStudentScore, refreshData, isLoading } = useApp();
+  const { students, assignments, scores, updateScore, updateScoreBulk, getStudentScore, refreshData, isLoading } = useApp();
   const [filterGrade, setFilterGrade] = useState<5 | 6>(5);
   const [filterClass, setFilterClass] = useState<string>('all');
   const [isExporting, setIsExporting] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null); // For header menu
 
   // Filter logic
   const filteredAssignments = assignments.filter(a => a.gradeLevel === filterGrade);
@@ -21,7 +23,7 @@ export const ScoreRecording = () => {
   
   // Get unique classrooms for dropdown and sort naturally (numeric aware)
   const classrooms = Array.from(new Set(students.filter(s => s.gradeLevel === filterGrade).map(s => s.classroom)))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    .sort((a: string, b: string) => a.localeCompare(b, undefined, { numeric: true }));
 
   const handleScoreChange = (studentId: string, assignmentId: string, val: string) => {
     let numVal: number | null = null;
@@ -39,6 +41,25 @@ export const ScoreRecording = () => {
       score: numVal,
       status: numVal !== null ? 'submitted' : 'pending'
     });
+  };
+
+  const handleBulkScore = async (assignmentId: string, valStr: string) => {
+    const val = Number(valStr);
+    const max = assignments.find(a => a.id === assignmentId)?.maxScore || 100;
+    
+    if (isNaN(val) || val < 0 || val > max) return;
+
+    if (confirm(`ยืนยันการให้คะแนน ${val} คะแนน กับนักเรียนที่แสดงอยู่ทั้งหมด (${filteredStudents.length} คน)?`)) {
+      const scoresToUpdate: Score[] = filteredStudents.map(s => ({
+        studentId: s.id,
+        assignmentId,
+        score: val,
+        status: 'submitted'
+      }));
+      
+      await updateScoreBulk(scoresToUpdate);
+      setActiveMenu(null);
+    }
   };
 
   const handleRefresh = async () => {
@@ -64,10 +85,7 @@ export const ScoreRecording = () => {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
-      // Add Header Text manually if needed, or just print the captured table
-      // We print just the image to ensure layout matches exactly
       pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, pdfHeight);
-      
       pdf.save(`score_report_grade${filterGrade}.pdf`);
     } catch (error) {
       console.error('PDF Export failed', error);
@@ -84,7 +102,6 @@ export const ScoreRecording = () => {
     }
 
     try {
-      // 1. Prepare Data
       const data = filteredStudents.map((student, index) => {
         const row: any = {
           'ลำดับ': index + 1,
@@ -94,27 +111,20 @@ export const ScoreRecording = () => {
         };
 
         let totalScore = 0;
-
         filteredAssignments.forEach(assignment => {
           const score = getStudentScore(student.id, assignment.id);
-          // Use assignment title as column header
           row[assignment.title] = score === '' ? '-' : score;
-          
-          if (typeof score === 'number') {
-            totalScore += score;
-          }
+          if (typeof score === 'number') totalScore += score;
         });
 
         row['รวมคะแนน'] = totalScore;
         return row;
       });
 
-      // 2. Create Workbook and Worksheet
       const ws = utils.json_to_sheet(data);
       const wb = utils.book_new();
       utils.book_append_sheet(wb, ws, `Scores Grade ${filterGrade}`);
 
-      // 3. Save File
       const dateStr = new Date().toISOString().split('T')[0];
       writeFile(wb, `Score_Report_P${filterGrade}_${dateStr}.xlsx`);
       
@@ -125,7 +135,7 @@ export const ScoreRecording = () => {
   };
 
   return (
-    <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col">
+    <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col" onClick={() => setActiveMenu(null)}>
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold font-['Mitr']">บันทึกคะแนน</h1>
@@ -186,9 +196,38 @@ export const ScoreRecording = () => {
                   รายชื่อนักเรียน
                 </th>
                 {filteredAssignments.map(a => (
-                  <th key={a.id} className="p-4 min-w-[120px] text-center border-b border-gray-200 font-medium text-gray-600">
-                    <div className="text-sm font-bold text-gray-800">{a.title}</div>
+                  <th key={a.id} className="p-4 min-w-[120px] text-center border-b border-gray-200 font-medium text-gray-600 relative group">
+                    <div className="flex items-center justify-center gap-1">
+                      <div className="text-sm font-bold text-gray-800">{a.title}</div>
+                      <button 
+                         onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === a.id ? null : a.id); }}
+                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-200 rounded"
+                      >
+                         <MoreVertical size={14} />
+                      </button>
+                    </div>
                     <div className="text-xs text-gray-400">เต็ม {a.maxScore}</div>
+
+                    {/* Dropdown Menu for Bulk Actions */}
+                    {activeMenu === a.id && (
+                      <div className="absolute top-full right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-100 z-50 p-2 text-left" onClick={(e) => e.stopPropagation()}>
+                         <p className="text-xs font-bold text-gray-500 mb-2 px-2">ใส่คะแนนทั้งห้อง</p>
+                         <div className="flex gap-1">
+                           <input 
+                              type="number" 
+                              placeholder={String(a.maxScore)}
+                              className="w-full border border-gray-200 rounded-lg px-2 py-1 text-sm outline-none focus:border-accent"
+                              onKeyDown={(e) => {
+                                 if (e.key === 'Enter') handleBulkScore(a.id, (e.target as HTMLInputElement).value);
+                              }}
+                           />
+                           <button className="bg-accent text-white p-1 rounded-lg">
+                             <CheckCheck size={16} />
+                           </button>
+                         </div>
+                         <p className="text-[10px] text-gray-400 mt-1 px-2">กด Enter เพื่อยืนยัน</p>
+                      </div>
+                    )}
                   </th>
                 ))}
                 <th className="p-4 min-w-[100px] text-center border-b border-gray-200 font-bold text-gray-700 bg-gray-50">รวม</th>
