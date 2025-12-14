@@ -264,34 +264,48 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const login = async (username: string, password?: string, role: Role = Role.TEACHER) => {
     setIsLoading(true);
 
-    if (role === Role.TEACHER) {
-      const foundTeacher = MOCK_USERS.find(u => u.username === username && u.role === Role.TEACHER);
-      if (foundTeacher && password === '1234') {
-        setIsLoading(false);
-        setCurrentUser(foundTeacher);
-        localStorage.setItem('user', JSON.stringify(foundTeacher));
-        refreshData();
-        return true;
-      }
-    } else if (role === Role.STUDENT) {
-      // Check ALL mock students, not just the ones in MOCK_USERS
-      const foundStudent = MOCK_STUDENTS.find(s => s.studentId === username);
-      
-      if (foundStudent) {
-        const user: User = {
-           id: foundStudent.id,
-           username: foundStudent.studentId,
-           name: foundStudent.name,
-           role: Role.STUDENT,
-           gradeLevel: foundStudent.gradeLevel,
-           classroom: foundStudent.classroom
-        };
-        setIsLoading(false);
-        setCurrentUser(user);
-        localStorage.setItem('user', JSON.stringify(user));
-        refreshData();
-        return true;
-      }
+    // 1. Attempt Login via Real API
+    const res = await callApi('login', { username, password, role });
+
+    if (res.status === 'success' && res.user) {
+       setIsLoading(false);
+       setCurrentUser(res.user);
+       localStorage.setItem('user', JSON.stringify(res.user));
+       refreshData();
+       return true;
+    }
+
+    // 2. Mock Fallback (Only if API fails due to network/error, not invalid creds)
+    if (res.status === 'mock_fallback') {
+        if (role === Role.TEACHER) {
+          const foundTeacher = MOCK_USERS.find(u => u.username === username && u.role === Role.TEACHER);
+          if (foundTeacher && password === '1234') {
+            setIsLoading(false);
+            setCurrentUser(foundTeacher);
+            localStorage.setItem('user', JSON.stringify(foundTeacher));
+            refreshData();
+            return true;
+          }
+        } else if (role === Role.STUDENT) {
+          // Check MOCK students if API is down
+          const foundStudent = MOCK_STUDENTS.find(s => s.studentId === username);
+          
+          if (foundStudent) {
+            const user: User = {
+               id: foundStudent.id,
+               username: foundStudent.studentId,
+               name: foundStudent.name,
+               role: Role.STUDENT,
+               gradeLevel: foundStudent.gradeLevel,
+               classroom: foundStudent.classroom
+            };
+            setIsLoading(false);
+            setCurrentUser(user);
+            localStorage.setItem('user', JSON.stringify(user));
+            refreshData();
+            return true;
+          }
+        }
     }
 
     setIsLoading(false);
@@ -490,3 +504,4 @@ export const useApp = () => {
   if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 };
+
