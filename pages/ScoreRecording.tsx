@@ -491,6 +491,63 @@ export const ScoreRecording = () => {
                 );
               })}
             </tbody>
+            {/* Table Footer with Averages */}
+            <tfoot className="sticky bottom-0 z-20 font-bold text-gray-600 bg-gray-50 shadow-[0_-1px_3px_rgba(0,0,0,0.1)] border-t-2 border-gray-200">
+              <tr>
+                <td className="sticky left-0 z-30 bg-gray-50 p-4 border-r border-gray-200 text-right shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]">
+                   ค่าเฉลี่ย (Average)
+                </td>
+
+                {viewMode === 'recording' ? (
+                   <>
+                     {filteredAssignments.map(a => {
+                        const validScores = filteredStudents
+                          .map(s => getStudentScore(s.id, a.id))
+                          .filter((val): val is number => typeof val === 'number');
+
+                        const avg = validScores.length > 0
+                          ? (validScores.reduce((sum, val) => sum + val, 0) / validScores.length).toFixed(2)
+                          : '-';
+
+                        return (
+                           <td key={a.id} className="p-3 text-center border-r border-dashed border-gray-200 text-blue-600">
+                              {avg}
+                              <span className="text-[10px] text-gray-400 font-normal block">/ {a.maxScore}</span>
+                           </td>
+                        );
+                     })}
+                     <td className="p-3 text-center bg-gray-100 text-accent">
+                        {(() => {
+                           const studentTotals = filteredStudents.map(s =>
+                             filteredAssignments.reduce((acc, a) => acc + (Number(getStudentScore(s.id, a.id)) || 0), 0)
+                           );
+                           const avgTotal = studentTotals.length > 0
+                             ? (studentTotals.reduce((a, b) => a + b, 0) / studentTotals.length).toFixed(2)
+                             : '-';
+                           return avgTotal;
+                        })()}
+                     </td>
+                   </>
+                ) : (
+                   <>
+                      <td className="p-3 text-center text-accent">
+                         {(() => {
+                            const studentTotals = filteredStudents.map(s =>
+                              filteredAssignments.reduce((acc, a) => acc + (Number(getStudentScore(s.id, a.id)) || 0), 0)
+                            );
+                            const avgTotal = studentTotals.length > 0
+                              ? (studentTotals.reduce((a, b) => a + b, 0) / studentTotals.length).toFixed(2)
+                              : '-';
+                            return avgTotal;
+                         })()}
+                      </td>
+                      <td colSpan={3} className="p-3 text-center text-xs text-gray-400 font-normal">
+                         (คะแนนเฉลี่ยรวมทั้งห้อง)
+                      </td>
+                   </>
+                )}
+              </tr>
+            </tfoot>
           </table>
           </div>
         </div>

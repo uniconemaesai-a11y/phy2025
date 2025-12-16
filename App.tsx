@@ -10,10 +10,14 @@ import { ManageAssignments } from './pages/ManageAssignments';
 import { ScoreRecording } from './pages/ScoreRecording';
 import { AttendanceRecording } from './pages/AttendanceRecording';
 import { StudentManagement } from './pages/StudentManagement';
+import { TeacherTools } from './pages/TeacherTools';
 import { StudentPortal } from './pages/StudentPortal';
 import { HealthData } from './pages/HealthData';
 import { ManageQuizzes } from './pages/ManageQuizzes';
 import { TakeQuiz } from './pages/TakeQuiz';
+import { StudentGame } from './pages/StudentGame';
+import { StudentQuests } from './pages/StudentQuests';
+import { StudentShop } from './pages/StudentShop';
 import { Role } from './types';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -73,6 +77,11 @@ const AppRoutes = () => {
           <AttendanceRecording />
         </ProtectedRoute>
       } />
+      <Route path="/teacher/tools" element={
+        <ProtectedRoute allowedRole={Role.TEACHER}>
+          <TeacherTools />
+        </ProtectedRoute>
+      } />
       <Route path="/teacher/health" element={
         <ProtectedRoute allowedRole={Role.TEACHER}>
           <HealthData />
@@ -93,6 +102,23 @@ const AppRoutes = () => {
       <Route path="/student/assignments" element={
         <ProtectedRoute allowedRole={Role.STUDENT}>
           <StudentPortal /> 
+        </ProtectedRoute>
+      } />
+       <Route path="/student/quests" element={
+        <ProtectedRoute allowedRole={Role.STUDENT}>
+          <StudentQuests /> 
+        </ProtectedRoute>
+      } />
+      <Route path="/student/shop" element={
+        <ProtectedRoute allowedRole={Role.STUDENT}>
+          <StudentShop /> 
+        </ProtectedRoute>
+      } />
+      
+      {/* Mini Game (Uses Layout for navigation, but maybe we want full screen? Let's keep it in layout for now for consistency) */}
+      <Route path="/student/game" element={
+        <ProtectedRoute allowedRole={Role.STUDENT}>
+           <StudentGame />
         </ProtectedRoute>
       } />
       

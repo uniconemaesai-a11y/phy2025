@@ -1,11 +1,221 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../services/AppContext';
 import { Card } from '../components/Card';
-import { Users, Plus, Upload, Edit2, Trash2, Search, X, Check, Loader2, FileText, Printer, AlertTriangle, Download } from 'lucide-react';
-import { StudentData } from '../types';
+import { Users, Plus, Upload, Edit2, Trash2, Search, X, Check, Loader2, FileText, Printer, AlertTriangle, Download, GraduationCap } from 'lucide-react';
+import { StudentData, Assignment } from '../types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+
+// Helper: Calculate Grade
+const calculateGrade = (score: number) => {
+  if (score >= 80) return 4;
+  if (score >= 75) return 3.5;
+  if (score >= 70) return 3;
+  if (score >= 65) return 2.5;
+  if (score >= 60) return 2;
+  if (score >= 55) return 1.5;
+  if (score >= 50) return 1;
+  return 0;
+};
+
+// Reusable Report Card Component
+const OfficialReportCard = ({ 
+    student, 
+    assignments, 
+    getStudentScore, 
+    getStudentAttendanceStats, 
+    getLatestHealthRecord 
+}: { 
+    student: StudentData, 
+    assignments: Assignment[], 
+    getStudentScore: Function, 
+    getStudentAttendanceStats: Function, 
+    getLatestHealthRecord: Function 
+}) => {
+    return (
+        <div className="bg-white w-[210mm] min-h-[297mm] p-[15mm] shadow-none relative text-gray-800 font-['Sarabun'] mx-auto">
+            {/* 1. Header */}
+            <div className="flex flex-col items-center mb-8 border-b-2 border-gray-800 pb-4">
+                <img src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" alt="Logo" className="w-20 h-20 mb-2 object-contain" />
+                <h1 className="text-xl font-bold font-['Mitr']">แบบรายงานผลการพัฒนาคุณภาพผู้เรียนรายบุคคล (ปพ.6)</h1>
+                <h2 className="text-lg font-bold">กลุ่มสาระการเรียนรู้สุขศึกษาและพลศึกษา</h2>
+                <p className="text-base">ภาคเรียนที่ 2 ปีการศึกษา 2567</p>
+            </div>
+
+            {/* 2. Student Info */}
+            <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 mb-6">
+                <div className="grid grid-cols-2 gap-y-2 text-base">
+                    <div className="flex">
+                        <span className="font-bold w-32">ชื่อ-นามสกุล:</span>
+                        <span>{student.name}</span>
+                    </div>
+                    <div className="flex">
+                        <span className="font-bold w-32">เลขประจำตัว:</span>
+                        <span className="font-mono">{student.studentId}</span>
+                    </div>
+                    <div className="flex">
+                        <span className="font-bold w-32">ระดับชั้น:</span>
+                        <span>ประถมศึกษาปีที่ {student.gradeLevel}</span>
+                    </div>
+                    <div className="flex">
+                        <span className="font-bold w-32">ห้องเรียน:</span>
+                        <span>{student.classroom}</span>
+                    </div>
+                    <div className="flex col-span-2">
+                        <span className="font-bold w-32">ครูประจำวิชา:</span>
+                        <span>นายประภาส พลาสัย</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. Academic Scores */}
+            <h3 className="text-lg font-bold mb-2 font-['Mitr'] border-l-4 border-gray-800 pl-2">1. ผลสัมฤทธิ์ทางการเรียน</h3>
+            <table className="w-full border-collapse border border-gray-400 mb-6 text-base">
+                <thead>
+                    <tr className="bg-gray-200 text-gray-800">
+                        <th className="border border-gray-400 p-2 text-left w-12">ที่</th>
+                        <th className="border border-gray-400 p-2 text-left">รายการประเมิน / ชิ้นงาน</th>
+                        <th className="border border-gray-400 p-2 text-center w-24">คะแนนเต็ม</th>
+                        <th className="border border-gray-400 p-2 text-center w-24">คะแนนที่ได้</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {assignments.filter(a => a.gradeLevel === student.gradeLevel).map((a, idx) => (
+                        <tr key={a.id}>
+                            <td className="border border-gray-400 p-2 text-center">{idx + 1}</td>
+                            <td className="border border-gray-400 p-2">{a.title}</td>
+                            <td className="border border-gray-400 p-2 text-center">{a.maxScore}</td>
+                            <td className="border border-gray-400 p-2 text-center font-medium">
+                                {getStudentScore(student.id, a.id) || '-'}
+                            </td>
+                        </tr>
+                    ))}
+                    
+                    {/* Summary Rows */}
+                    {(() => {
+                        const myAssignments = assignments.filter(a => a.gradeLevel === student.gradeLevel);
+                        const totalMax = myAssignments.reduce((acc, a) => acc + a.maxScore, 0);
+                        const totalScore = myAssignments.reduce((acc, a) => {
+                            const s = getStudentScore(student.id, a.id);
+                            return acc + (typeof s === 'number' ? s : 0);
+                        }, 0);
+                        const grade = calculateGrade(totalScore);
+
+                        return (
+                            <>
+                            <tr className="bg-gray-50 font-bold">
+                                <td colSpan={2} className="border border-gray-400 p-2 text-right">รวมคะแนนทั้งหมด</td>
+                                <td className="border border-gray-400 p-2 text-center">{totalMax}</td>
+                                <td className="border border-gray-400 p-2 text-center">{totalScore}</td>
+                            </tr>
+                            <tr className="bg-gray-100 font-bold text-lg">
+                                <td colSpan={3} className="border border-gray-400 p-3 text-right">ระดับผลการเรียน (เกรด)</td>
+                                <td className="border border-gray-400 p-3 text-center">{grade}</td>
+                            </tr>
+                            </>
+                        );
+                    })()}
+                </tbody>
+            </table>
+
+            <div className="grid grid-cols-2 gap-8 mb-8">
+                {/* 4. Attendance */}
+                <div>
+                    <h3 className="text-lg font-bold mb-2 font-['Mitr'] border-l-4 border-gray-800 pl-2">2. สรุปเวลาเรียน</h3>
+                    {(() => {
+                        const stats = getStudentAttendanceStats(student.id);
+                        return (
+                            <table className="w-full border-collapse border border-gray-400 text-sm">
+                                <tbody>
+                                    <tr>
+                                        <td className="border border-gray-400 p-2 bg-gray-50 font-bold">มาเรียน</td>
+                                        <td className="border border-gray-400 p-2 text-center">{stats.present} วัน</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border border-gray-400 p-2 bg-gray-50 font-bold">สาย</td>
+                                        <td className="border border-gray-400 p-2 text-center">{stats.late} วัน</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border border-gray-400 p-2 bg-gray-50 font-bold">ลา / ขาด</td>
+                                        <td className="border border-gray-400 p-2 text-center">{stats.leave + stats.missing} วัน</td>
+                                    </tr>
+                                    <tr className="bg-gray-100 font-bold">
+                                        <td className="border border-gray-400 p-2">คิดเป็นร้อยละ</td>
+                                        <td className="border border-gray-400 p-2 text-center">{stats.attendanceRate}%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        );
+                    })()}
+                </div>
+
+                {/* 5. Health Data */}
+                <div>
+                    <h3 className="text-lg font-bold mb-2 font-['Mitr'] border-l-4 border-gray-800 pl-2">3. ข้อมูลสุขภาพ</h3>
+                    {(() => {
+                        const h = getLatestHealthRecord(student.id);
+                        return (
+                            <table className="w-full border-collapse border border-gray-400 text-sm">
+                                <tbody>
+                                    <tr>
+                                        <td className="border border-gray-400 p-2 bg-gray-50 font-bold">น้ำหนัก</td>
+                                        <td className="border border-gray-400 p-2 text-center">{h ? h.weight : '-'} กก.</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border border-gray-400 p-2 bg-gray-50 font-bold">ส่วนสูง</td>
+                                        <td className="border border-gray-400 p-2 text-center">{h ? h.height : '-'} ซม.</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="border border-gray-400 p-2 bg-gray-50 font-bold">ดัชนีมวลกาย (BMI)</td>
+                                        <td className="border border-gray-400 p-2 text-center">{h ? h.bmi : '-'}</td>
+                                    </tr>
+                                    <tr className="bg-gray-100 font-bold">
+                                        <td className="border border-gray-400 p-2">แปลผล</td>
+                                        <td className="border border-gray-400 p-2 text-center">{h ? h.interpretation : '-'}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        );
+                    })()}
+                </div>
+            </div>
+
+            {/* 6. Signatures */}
+            <div className="absolute bottom-[20mm] left-[15mm] right-[15mm]">
+                <div className="flex justify-between items-end">
+                    <div className="text-center w-5/12">
+                        <div className="border-b border-dotted border-gray-400 mb-2 h-8"></div>
+                        <p className="font-bold text-base">( นายประภาส พลาสัย )</p>
+                        <p className="text-sm">ครูประจำวิชา</p>
+                        <div className="flex justify-center items-center gap-1 mt-1 text-sm">
+                            <span>วันที่</span>
+                            <span className="border-b border-dotted border-gray-400 w-8 inline-block"></span>
+                            <span>/</span>
+                            <span className="border-b border-dotted border-gray-400 w-8 inline-block"></span>
+                            <span>/</span>
+                            <span className="border-b border-dotted border-gray-400 w-12 inline-block">2568</span>
+                        </div>
+                    </div>
+
+                    <div className="text-center w-5/12">
+                        <div className="border-b border-dotted border-gray-400 mb-2 h-8"></div>
+                        <p className="font-bold text-base">(.......................................................)</p>
+                        <p className="text-sm">ผู้ปกครอง</p>
+                        <div className="flex justify-center items-center gap-1 mt-1 text-sm">
+                            <span>วันที่</span>
+                            <span className="border-b border-dotted border-gray-400 w-8 inline-block"></span>
+                            <span>/</span>
+                            <span className="border-b border-dotted border-gray-400 w-8 inline-block"></span>
+                            <span>/</span>
+                            <span className="border-b border-dotted border-gray-400 w-12 inline-block">2568</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const StudentManagement = () => {
   const { students, addStudent, updateStudent, deleteStudent, getStudentScore, assignments, getStudentAttendanceStats, getLatestHealthRecord, showToast } = useApp();
@@ -20,6 +230,9 @@ export const StudentManagement = () => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [reportStudent, setReportStudent] = useState<StudentData | null>(null);
   const [editingStudent, setEditingStudent] = useState<StudentData | null>(null);
+  
+  // Bulk Printing State
+  const [isPrintingBulk, setIsPrintingBulk] = useState(false);
   
   // Delete Confirm State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -117,21 +330,77 @@ export const StudentManagement = () => {
   };
 
   const handlePrintReport = async () => {
-    const input = document.getElementById('student-report-card');
+    const input = document.getElementById('official-report-card-view');
     if (!input) return;
+
     try {
-        const canvas = await html2canvas(input, { scale: 2, backgroundColor: '#ffffff' });
+        const canvas = await html2canvas(input, { 
+            scale: 2, 
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true 
+        });
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        const pdfHeight = pdf.internal.pageSize.getHeight();
         
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`Report_${reportStudent?.studentId}.pdf`);
+        pdf.save(`Report_${reportStudent?.studentId}_${reportStudent?.name}.pdf`);
     } catch (e) {
         showToast('ผิดพลาด', 'เกิดข้อผิดพลาดในการพิมพ์', 'error');
     }
+  };
+
+  const handleBulkPrint = async () => {
+    if (filteredStudents.length === 0) {
+        showToast('แจ้งเตือน', 'ไม่มีรายชื่อนักเรียนให้พิมพ์', 'info');
+        return;
+    }
+
+    setIsPrintingBulk(true);
+    showToast('กำลังประมวลผล', 'กำลังสร้างไฟล์ PDF กรุณารอสักครู่...', 'info');
+
+    // Slight delay to allow DOM to render the hidden container
+    setTimeout(async () => {
+        try {
+            const container = document.getElementById('bulk-print-container');
+            if (!container) throw new Error('Container not found');
+
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+
+            const cards = Array.from(container.children) as HTMLElement[];
+
+            for (let i = 0; i < cards.length; i++) {
+                const canvas = await html2canvas(cards[i], { 
+                    scale: 2, 
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    useCORS: true 
+                });
+                const imgData = canvas.toDataURL('image/png');
+                
+                if (i > 0) pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            }
+
+            // Generate Filename
+            const filename = filterClass !== 'all' 
+                ? `Report_Class_${filterClass.replace('/', '-')}.pdf`
+                : `Report_Grade_${filterGrade}_All.pdf`;
+
+            pdf.save(filename);
+            showToast('สำเร็จ', 'สร้างไฟล์ PDF เรียบร้อยแล้ว', 'success');
+
+        } catch (e) {
+            console.error(e);
+            showToast('ผิดพลาด', 'เกิดข้อผิดพลาดในการพิมพ์แบบกลุ่ม', 'error');
+        } finally {
+            setIsPrintingBulk(false);
+        }
+    }, 1000);
   };
 
   const handleExportCSV = () => {
@@ -170,6 +439,14 @@ export const StudentManagement = () => {
           <p className="text-gray-500">เพิ่ม แก้ไข และลบข้อมูลนักเรียน (เชื่อมต่อฐานข้อมูล)</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button 
+            onClick={handleBulkPrint}
+            disabled={isPrintingBulk || filteredStudents.length === 0}
+            className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            {isPrintingBulk ? <Loader2 className="animate-spin" size={18}/> : <Printer size={18} />} 
+            {isPrintingBulk ? 'กำลังสร้าง PDF...' : 'พิมพ์ทั้งห้อง (PDF)'}
+          </button>
           <button 
             onClick={handleExportCSV}
             className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center gap-2"
@@ -271,128 +548,50 @@ export const StudentManagement = () => {
          </div>
       </Card>
 
-      {/* Report Card Modal */}
+      {/* Hidden Bulk Print Container */}
+      {isPrintingBulk && (
+          <div 
+             id="bulk-print-container" 
+             style={{ position: 'absolute', top: -10000, left: -10000, width: '210mm' }}
+          >
+              {filteredStudents.map(student => (
+                  <div key={student.id} className="mb-4">
+                      <OfficialReportCard 
+                          student={student} 
+                          assignments={assignments} 
+                          getStudentScore={getStudentScore} 
+                          getStudentAttendanceStats={getStudentAttendanceStats}
+                          getLatestHealthRecord={getLatestHealthRecord}
+                      />
+                  </div>
+              ))}
+          </div>
+      )}
+
+      {/* Official Report Card Modal (Single View) */}
       {reportStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setReportStudent(null)}></div>
-           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 flex flex-col max-h-[90vh]">
-              <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-3xl">
-                 <h3 className="font-bold text-gray-700">รายงานผลรายบุคคล (Report Card)</h3>
-                 <div className="flex gap-2">
-                    <button onClick={handlePrintReport} className="bg-accent text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-orange-400"><Printer size={16}/> พิมพ์ PDF</button>
-                    <button onClick={() => setReportStudent(null)} className="p-1.5 hover:bg-gray-200 rounded-lg"><X size={20}/></button>
-                 </div>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+           <div className="relative w-full max-w-[210mm] my-8 animate-fade-in-up">
               
-              <div className="overflow-y-auto p-8 bg-white" id="student-report-card">
-                 {/* Report Header */}
-                 <div className="text-center mb-6 border-b-2 border-accent pb-4">
-                    <img src="https://img5.pic.in.th/file/secure-sv1/-21d5e37cfa61c42627.png" className="w-16 mx-auto mb-2"/>
-                    <h2 className="text-xl font-bold font-['Mitr'] text-gray-800">แบบรายงานผลการเรียนรายวิชา สุขศึกษาและพลศึกษา</h2>
-                    <p className="text-sm text-gray-500">ภาคเรียนที่ 2 ปีการศึกษา 2567</p>
-                 </div>
+              {/* Controls */}
+              <div className="absolute top-0 right-0 -mt-12 flex gap-2">
+                 <button onClick={handlePrintReport} className="bg-white text-accent px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-gray-50 flex items-center gap-2 transition-all">
+                    <Printer size={18} /> พิมพ์รายงาน (PDF)
+                 </button>
+                 <button onClick={() => setReportStudent(null)} className="bg-white/20 text-white p-2 rounded-full hover:bg-white/30 transition-all">
+                    <X size={24} />
+                 </button>
+              </div>
 
-                 {/* Student Info */}
-                 <div className="grid grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <div>
-                       <p className="text-xs text-gray-500">ชื่อ - นามสกุล</p>
-                       <p className="font-bold text-gray-800">{reportStudent.name}</p>
-                    </div>
-                    <div>
-                       <p className="text-xs text-gray-500">รหัสประจำตัว</p>
-                       <p className="font-mono font-bold text-gray-800">{reportStudent.studentId}</p>
-                    </div>
-                    <div>
-                       <p className="text-xs text-gray-500">ระดับชั้น</p>
-                       <p className="font-bold text-gray-800">ประถมศึกษาปีที่ {reportStudent.gradeLevel}</p>
-                    </div>
-                    <div>
-                       <p className="text-xs text-gray-500">ห้องเรียน</p>
-                       <p className="font-bold text-gray-800">{reportStudent.classroom}</p>
-                    </div>
-                 </div>
-
-                 {/* Academic Performance */}
-                 <h4 className="font-bold text-gray-800 mb-2 border-l-4 border-blue-500 pl-2">ผลสัมฤทธิ์ทางการเรียน</h4>
-                 <table className="w-full border-collapse mb-6 text-sm">
-                    <thead>
-                       <tr className="bg-gray-100">
-                          <th className="border p-2 text-left">รายการประเมิน</th>
-                          <th className="border p-2 text-center w-24">คะแนนเต็ม</th>
-                          <th className="border p-2 text-center w-24">คะแนนที่ได้</th>
-                       </tr>
-                    </thead>
-                    <tbody>
-                       {assignments.filter(a => a.gradeLevel === reportStudent.gradeLevel).map(a => {
-                          const score = getStudentScore(reportStudent.id, a.id);
-                          return (
-                             <tr key={a.id}>
-                                <td className="border p-2">{a.title}</td>
-                                <td className="border p-2 text-center">{a.maxScore}</td>
-                                <td className="border p-2 text-center font-bold">{score === '' ? '-' : score}</td>
-                             </tr>
-                          )
-                       })}
-                       <tr className="bg-gray-50 font-bold">
-                          <td className="border p-2 text-right">รวมคะแนนทั้งหมด</td>
-                          <td className="border p-2 text-center">
-                             {assignments.filter(a => a.gradeLevel === reportStudent.gradeLevel).reduce((a,b) => a + b.maxScore, 0)}
-                          </td>
-                          <td className="border p-2 text-center text-blue-600">
-                             {assignments.filter(a => a.gradeLevel === reportStudent.gradeLevel).reduce((acc, curr) => {
-                                const s = getStudentScore(reportStudent.id, curr.id);
-                                return acc + (typeof s === 'number' ? s : 0);
-                             }, 0)}
-                          </td>
-                       </tr>
-                    </tbody>
-                 </table>
-
-                 <div className="grid grid-cols-2 gap-6">
-                    {/* Attendance */}
-                    <div>
-                       <h4 className="font-bold text-gray-800 mb-2 border-l-4 border-yellow-500 pl-2">การเข้าเรียน</h4>
-                       <div className="bg-white border rounded-lg p-3 text-sm">
-                          <div className="flex justify-between mb-1"><span>มาเรียน:</span> <b>{getStudentAttendanceStats(reportStudent.id).present} วัน</b></div>
-                          <div className="flex justify-between mb-1"><span>สาย:</span> <b>{getStudentAttendanceStats(reportStudent.id).late} วัน</b></div>
-                          <div className="flex justify-between"><span>ขาด/ลา:</span> <b>{getStudentAttendanceStats(reportStudent.id).missing + getStudentAttendanceStats(reportStudent.id).leave} วัน</b></div>
-                          <div className="border-t mt-2 pt-2 text-center">
-                             <span className="text-xs text-gray-500">อัตราการเข้าเรียน</span><br/>
-                             <span className="text-xl font-bold text-accent">{getStudentAttendanceStats(reportStudent.id).attendanceRate}%</span>
-                          </div>
-                       </div>
-                    </div>
-                    {/* Health */}
-                    <div>
-                       <h4 className="font-bold text-gray-800 mb-2 border-l-4 border-green-500 pl-2">สุขภาพ (ล่าสุด)</h4>
-                       {(() => {
-                          const h = getLatestHealthRecord(reportStudent.id);
-                          return h ? (
-                             <div className="bg-white border rounded-lg p-3 text-sm">
-                                <div className="flex justify-between mb-1"><span>น้ำหนัก:</span> <b>{h.weight} กก.</b></div>
-                                <div className="flex justify-between mb-1"><span>ส่วนสูง:</span> <b>{h.height} ซม.</b></div>
-                                <div className="flex justify-between mb-1"><span>BMI:</span> <b>{h.bmi}</b></div>
-                                <div className="mt-2 text-center">
-                                   <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">{h.interpretation}</span>
-                                </div>
-                             </div>
-                          ) : <div className="text-gray-400 text-sm border rounded-lg p-4 text-center">ไม่มีข้อมูลสุขภาพ</div>
-                       })()}
-                    </div>
-                 </div>
-                 
-                 <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between text-center">
-                    <div className="w-40">
-                       <div className="h-16"></div>
-                       <p className="text-sm">ลงชื่อครูประจำวิชา</p>
-                       <p className="text-xs text-gray-400">(..........................................)</p>
-                    </div>
-                    <div className="w-40">
-                        <div className="h-16"></div>
-                        <p className="text-sm">ลงชื่อผู้ปกครอง</p>
-                        <p className="text-xs text-gray-400">รับทราบผลการเรียน</p>
-                    </div>
-                 </div>
+              {/* View Wrapper */}
+              <div id="official-report-card-view" className="shadow-2xl">
+                 <OfficialReportCard 
+                    student={reportStudent} 
+                    assignments={assignments} 
+                    getStudentScore={getStudentScore} 
+                    getStudentAttendanceStats={getStudentAttendanceStats}
+                    getLatestHealthRecord={getLatestHealthRecord}
+                 />
               </div>
            </div>
         </div>

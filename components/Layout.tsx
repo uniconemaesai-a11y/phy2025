@@ -2,7 +2,7 @@
 import React, { PropsWithChildren } from 'react';
 import { useApp } from '../services/AppContext';
 import { Role } from '../types';
-import { LogOut, LayoutDashboard, ClipboardList, PenTool, User as UserIcon, Menu, X, Clock, Users, HeartPulse, BrainCircuit } from 'lucide-react';
+import { LogOut, LayoutDashboard, ClipboardList, PenTool, User as UserIcon, Menu, X, Clock, Users, HeartPulse, BrainCircuit, Gamepad2, CheckSquare, ShoppingBag, Wand2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export const Layout = ({ children }: PropsWithChildren) => {
@@ -18,6 +18,7 @@ export const Layout = ({ children }: PropsWithChildren) => {
     { name: 'บันทึกคะแนน', path: '/teacher/scores', icon: PenTool },
     { name: 'คลังข้อสอบ', path: '/teacher/quizzes', icon: BrainCircuit },
     { name: 'บันทึกเวลาเรียน', path: '/teacher/attendance', icon: Clock },
+    { name: 'เครื่องมือช่วยสอน', path: '/teacher/tools', icon: Wand2 },
     { name: 'ข้อมูลสุขภาพ', path: '/teacher/health', icon: HeartPulse },
     { name: 'จัดการนักเรียน', path: '/teacher/students', icon: Users },
   ];
@@ -25,6 +26,9 @@ export const Layout = ({ children }: PropsWithChildren) => {
   const studentLinks = [
     { name: 'หน้าหลัก', path: '/student', icon: LayoutDashboard },
     { name: 'งานของฉัน', path: '/student/assignments', icon: ClipboardList },
+    { name: 'ภารกิจสุขภาพ', path: '/student/quests', icon: CheckSquare },
+    { name: 'ร้านค้า', path: '/student/shop', icon: ShoppingBag },
+    { name: 'มินิเกม', path: '/student/game', icon: Gamepad2 },
   ];
 
   const links = currentUser.role === Role.TEACHER ? teacherLinks : studentLinks;

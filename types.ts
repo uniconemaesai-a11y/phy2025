@@ -1,4 +1,5 @@
 
+
 export enum Role {
   TEACHER = 'TEACHER',
   STUDENT = 'STUDENT'
@@ -32,12 +33,21 @@ export interface Score {
   feedback?: string;
 }
 
+// Item System
+export interface InventoryItem {
+  itemId: string;
+  count: number;
+}
+
 export interface StudentData {
   id: string;
   studentId: string; // e.g., S001
   name: string;
   gradeLevel: 5 | 6;
   classroom: string;
+  // Gamification stats
+  coins?: number;
+  inventory?: InventoryItem[];
 }
 
 export interface Attendance {
@@ -100,6 +110,25 @@ export interface QuizResult {
   totalScore: number;
   submittedAt: string;
   answers: Record<string, any>; // questionId: answer
+}
+
+// --- New Quest System ---
+export interface DailyQuest {
+  id: string; // e.g., 'water', 'sleep'
+  title: string;
+  icon: string; // Emoji
+  target: number; // e.g., 8 (glasses)
+  unit: string; // e.g., 'แก้ว'
+  xpReward: number;
+  coinReward: number; // New: Currency reward
+}
+
+export interface QuestProgress {
+  studentId: string;
+  date: string; // YYYY-MM-DD
+  questId: string;
+  current: number;
+  isCompleted: boolean;
 }
 
 export interface ToastNotification {

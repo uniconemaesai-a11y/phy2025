@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, PropsWithChildren, useRef } from 'react';
-import { User, Assignment, Score, StudentData, Role, Attendance, HealthRecord, Announcement, Quiz, QuizResult, ToastNotification } from '../types';
+import { User, Assignment, Score, StudentData, Role, Attendance, HealthRecord, Announcement, Quiz, QuizResult, ToastNotification, QuestProgress, DailyQuest, InventoryItem } from '../types';
 import { MOCK_USERS, MOCK_STUDENTS, INITIAL_ASSIGNMENTS, INITIAL_SCORES, INITIAL_ATTENDANCE, MOCK_ANNOUNCEMENTS, MOCK_QUIZZES } from '../constants';
 
 // *** REPLACE THIS WITH YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL ***
@@ -14,6 +14,31 @@ interface AttendanceStats {
   totalDays: number;
   attendanceRate: number;
 }
+
+// Default Quests Configuration
+export const DAILY_QUESTS: DailyQuest[] = [
+  { id: 'water', title: 'ดื่มน้ำสะอาด', icon: '💧', target: 8, unit: 'แก้ว', xpReward: 20, coinReward: 10 },
+  { id: 'fruit', title: 'กินผัก/ผลไม้', icon: '🥗', target: 2, unit: 'มื้อ', xpReward: 30, coinReward: 15 },
+  { id: 'exercise', title: 'ออกกำลังกาย 30 นาที', icon: '🏃', target: 1, unit: 'ครั้ง', xpReward: 50, coinReward: 25 },
+  { id: 'sleep', title: 'นอนหลับ 8 ชั่วโมง', icon: '💤', target: 1, unit: 'คืน', xpReward: 30, coinReward: 15 },
+  { id: 'teeth', title: 'แปรงฟัน เช้า-เย็น', icon: '🦷', target: 2, unit: 'ครั้ง', xpReward: 20, coinReward: 10 },
+];
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  icon: string;
+  type: 'POTION' | 'BUFF' | 'COSMETIC';
+  effectValue?: number;
+}
+
+export const SHOP_ITEMS: ShopItem[] = [
+  { id: 'potion_s', name: 'น้ำแดงโซดา (S)', description: 'ฟื้นฟู 20 HP ในการต่อสู้', price: 50, icon: '🥤', type: 'POTION', effectValue: 20 },
+  { id: 'potion_l', name: 'เวย์โปรตีน (L)', description: 'ฟื้นฟู 50 HP ในการต่อสู้', price: 100, icon: '🥛', type: 'POTION', effectValue: 50 },
+  { id: 'energy_drink', name: 'เกลือแร่สปอร์ต', description: 'เพิ่ม 2 Energy ทันที', price: 80, icon: '⚡', type: 'BUFF', effectValue: 2 },
+];
 
 interface AppContextType {
   currentUser: User | null;
@@ -55,6 +80,17 @@ interface AppContextType {
   quizResults: QuizResult[];
   submitQuiz: (result: QuizResult) => Promise<void>;
 
+  // Quest System
+  questProgress: QuestProgress[];
+  updateQuestProgress: (studentId: string, questId: string, increment: number) => void;
+  getTodayQuests: (studentId: string) => { quest: DailyQuest, progress: QuestProgress }[];
+
+  // Shop & Inventory
+  studentDataExtras: Record<string, { coins: number, inventory: InventoryItem[] }>;
+  buyItem: (studentId: string, item: ShopItem) => boolean;
+  consumeItem: (studentId: string, itemId: string) => void;
+  addCoins: (studentId: string, amount: number) => void;
+
   toasts: ToastNotification[];
   showToast: (title: string, message: string, type?: 'success' | 'info' | 'error') => void;
   removeToast: (id: string) => void;
@@ -62,25 +98,16 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Helper to clean up Classroom strings (handle Dates, etc)
+// Helper to clean up Classroom strings
 const normalizeClassroom = (val: any, grade: number): string => {
   let str = String(val || '').trim();
-  
-  // Remove single quote if present (from GAS backend force-string hack)
   if (str.startsWith("'")) str = str.substring(1);
-
-  // If it matches standard "5/1", return it
   if (/^[56]\/[1-9]$/.test(str)) return str;
-
-  // If it's a date-like string (e.g. ISO date or "05/01/2025")
   if (str.includes('-') || str.includes('/')) {
       const date = new Date(str);
       if (!isNaN(date.getTime())) {
-          // It's a valid date. Try to reconstruct Room from Day/Month.
           const d = date.getDate();
           const m = date.getMonth() + 1;
-          
-          // Heuristic: Check if Month or Day matches Grade
           if (m === grade && d < 10) return `${grade}/${d}`;
           if (d === grade && m < 10) return `${grade}/${m}`;
       }
@@ -98,18 +125,19 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+  
+  // New State for Quests & Shop (Mock Local Storage for Demo)
+  const [questProgress, setQuestProgress] = useState<QuestProgress[]>([]);
+  const [studentDataExtras, setStudentDataExtras] = useState<Record<string, { coins: number, inventory: InventoryItem[] }>>({});
+  
   const [isLoading, setIsLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
-
-  // Refs to hold previous state for comparison during refresh
   const prevScoresRef = useRef<Score[]>([]);
 
-  // Helper to call API with CORS handling (using no-cors text/plain for Apps Script simple requests)
   const callApi = async (action: string, payload: any = {}) => {
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
-        // Use text/plain to avoid CORS preflight options request issues with GAS
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action, ...payload }),
       });
@@ -136,16 +164,13 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     const res = await callApi('getData');
     
     if (res.status === 'success') {
-      // 1. Students
       const cleanStudents = (res.students || []).map((s: any) => ({
         ...s,
         gradeLevel: Number(s.gradeLevel),
-        // Normalize classroom to fix Date issues from Google Sheets
         classroom: normalizeClassroom(s.classroom, Number(s.gradeLevel))
       }));
       setStudents(cleanStudents);
 
-      // 2. Assignments
       const cleanAssignments = (res.assignments || []).map((a: any) => {
         let cls = [];
         try {
@@ -162,7 +187,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       });
       setAssignments(cleanAssignments);
 
-      // 3. Scores
       const cleanScores = (res.scores || []).map((s: any) => ({
         ...s,
         assignmentId: String(s.assignmentId),
@@ -170,7 +194,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         score: (s.score === '' || s.score === null || s.score === undefined) ? null : Number(s.score)
       }));
       
-      // Notification Logic
       if (currentUser?.role === Role.TEACHER && prevScoresRef.current.length > 0) {
         cleanScores.forEach((newScore: Score) => {
           const oldScore = prevScoresRef.current.find(os => os.assignmentId === newScore.assignmentId && os.studentId === newScore.studentId);
@@ -182,23 +205,15 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       }
       prevScoresRef.current = cleanScores;
       setScores(cleanScores);
-
-      // 4. Attendance
       setAttendance(res.attendance || []);
-
-      // 5. Health
       setHealthRecords(res.healthRecords || []);
-
-      // 6. Announcements
       if (res.announcements) setAnnouncements(res.announcements);
       
-      // 7. Quizzes (Safe Parse)
       if (res.quizzes) {
          setQuizzes(res.quizzes.map((q: any) => {
              let questions = [];
              try {
                 if (typeof q.questions === 'string') {
-                    // Sometimes double encoded if saved incorrectly before
                     questions = JSON.parse(q.questions);
                     if (typeof questions === 'string') questions = JSON.parse(questions);
                 } else {
@@ -212,12 +227,11 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
                  timeLimit: Number(q.timeLimit),
                  totalScore: Number(q.totalScore),
                  questions: Array.isArray(questions) ? questions : [],
-                 status: q.status || 'published' // Default to published to ensure they show up
+                 status: q.status || 'published'
              };
          }));
       }
 
-      // 8. Quiz Results (Safe Parse)
       if (res.quizResults) {
          setQuizResults(res.quizResults.map((r: any) => {
              let answers = {};
@@ -240,7 +254,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       }
 
     } else if (res.status === 'mock_fallback') {
-      // Load Mock Data if API fails
       if (students.length === 0) setStudents(MOCK_STUDENTS);
       if (assignments.length === 0) setAssignments(INITIAL_ASSIGNMENTS);
       if (scores.length === 0) {
@@ -260,12 +273,21 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       setCurrentUser(JSON.parse(storedUser));
       refreshData();
     }
+    // Load local data for demo
+    const storedQuests = localStorage.getItem('questProgress');
+    if (storedQuests) setQuestProgress(JSON.parse(storedQuests));
+    
+    const storedExtras = localStorage.getItem('studentDataExtras');
+    if (storedExtras) setStudentDataExtras(JSON.parse(storedExtras));
   }, []);
+
+  // Sync Extras to LocalStorage
+  useEffect(() => {
+      localStorage.setItem('studentDataExtras', JSON.stringify(studentDataExtras));
+  }, [studentDataExtras]);
 
   const login = async (username: string, password?: string, role: Role = Role.TEACHER) => {
     setIsLoading(true);
-
-    // Try API Login
     const res = await callApi('login', { username, password, role });
 
     if (res.status === 'success' && res.user) {
@@ -277,7 +299,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
        return true;
     }
 
-    // Fallback to Mock Data if API fails (Demo mode)
     if (res.status === 'mock_fallback') {
         if (role === Role.TEACHER) {
           const foundTeacher = MOCK_USERS.find(u => u.username === username && u.role === Role.TEACHER);
@@ -326,7 +347,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     showToast('ออกจากระบบ', 'ไว้พบกันใหม่นะครับ', 'info');
   };
 
-  // --- CRUD Wrappers ---
+  // --- CRUD Functions (Assignments, Students, etc.) ---
   const addAssignment = async (assignment: Assignment) => {
     setAssignments(prev => [...prev, assignment]);
     await callApi('addAssignment', { payload: assignment });
@@ -349,7 +370,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       }
       return [...prev, newScore];
     });
-    // No await here for faster UI response
     callApi('updateScore', { payload: newScore });
   };
 
@@ -408,13 +428,11 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         status: d.status,
         reason: d.reason
     }));
-    
     setAttendance(prev => {
        const updatingIds = new Set(newRecords.map(r => r.id));
        const others = prev.filter(r => !updatingIds.has(r.id));
        return [...others, ...newRecords];
     });
-    
     await callApi('markAttendanceBulk', { payload: newRecords });
     showToast('สำเร็จ', 'บันทึกเวลาเรียนแล้ว', 'success');
   };
@@ -423,12 +441,10 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     const records = attendance.filter(a => String(a.studentId) === String(studentId));
     const totalDays = records.length;
     if (totalDays === 0) return { present: 0, late: 0, leave: 0, missing: 0, totalDays: 0, attendanceRate: 100 };
-    
     const present = records.filter(a => a.status === 'present').length;
     const late = records.filter(a => a.status === 'late').length;
     const leave = records.filter(a => a.status === 'leave').length;
     const missing = records.filter(a => a.status === 'missing').length;
-    
     const attendanceRate = Math.round(((present + late) / totalDays) * 100);
     return { present, late, leave, missing, totalDays, attendanceRate };
   };
@@ -480,6 +496,130 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
      showToast('สำเร็จ', 'ส่งคำตอบแล้ว', 'success');
   };
 
+  // --- Quest System Functions ---
+  const updateQuestProgress = (studentId: string, questId: string, increment: number) => {
+      const date = new Date().toISOString().split('T')[0];
+      const questDef = DAILY_QUESTS.find(q => q.id === questId);
+      if (!questDef) return;
+
+      setQuestProgress(prev => {
+          const existingIdx = prev.findIndex(p => p.studentId === studentId && p.questId === questId && p.date === date);
+          let newProgress = [...prev];
+          let earnedCoins = 0;
+
+          if (existingIdx >= 0) {
+              const current = newProgress[existingIdx];
+              if (current.isCompleted) return prev; // Already done
+
+              const newVal = Math.min(current.current + increment, questDef.target);
+              newProgress[existingIdx] = {
+                  ...current,
+                  current: newVal,
+                  isCompleted: newVal >= questDef.target
+              };
+              
+              if (newVal >= questDef.target && !current.isCompleted) {
+                   earnedCoins = questDef.coinReward;
+                   showToast('สำเร็จ!', `ภารกิจ "${questDef.title}" ครบแล้ว! (+${questDef.xpReward} XP, +${questDef.coinReward} Coins)`, 'success');
+              }
+          } else {
+              const newVal = Math.min(increment, questDef.target);
+              newProgress.push({
+                  studentId,
+                  date,
+                  questId,
+                  current: newVal,
+                  isCompleted: newVal >= questDef.target
+              });
+              if (newVal >= questDef.target) {
+                   earnedCoins = questDef.coinReward;
+                   showToast('สำเร็จ!', `ภารกิจ "${questDef.title}" ครบแล้ว! (+${questDef.xpReward} XP, +${questDef.coinReward} Coins)`, 'success');
+              }
+          }
+          
+          if (earnedCoins > 0) {
+              addCoins(studentId, earnedCoins);
+          }
+
+          localStorage.setItem('questProgress', JSON.stringify(newProgress));
+          return newProgress;
+      });
+  };
+
+  const getTodayQuests = (studentId: string) => {
+      const date = new Date().toISOString().split('T')[0];
+      return DAILY_QUESTS.map(quest => {
+          const progress = questProgress.find(p => p.studentId === studentId && p.questId === quest.id && p.date === date) || {
+              studentId,
+              date,
+              questId: quest.id,
+              current: 0,
+              isCompleted: false
+          };
+          return { quest, progress };
+      });
+  };
+
+  // --- Shop & Currency System ---
+  const addCoins = (studentId: string, amount: number) => {
+      setStudentDataExtras(prev => {
+          const current = prev[studentId] || { coins: 0, inventory: [] };
+          return {
+              ...prev,
+              [studentId]: { ...current, coins: current.coins + amount }
+          };
+      });
+  };
+
+  const buyItem = (studentId: string, item: ShopItem) => {
+      const data = studentDataExtras[studentId] || { coins: 0, inventory: [] };
+      if (data.coins < item.price) {
+          showToast('เงินไม่พอ', 'กรุณาทำภารกิจเพื่อสะสมเหรียญ', 'error');
+          return false;
+      }
+
+      setStudentDataExtras(prev => {
+          const current = prev[studentId] || { coins: 0, inventory: [] };
+          const existingItemIdx = current.inventory.findIndex(i => i.itemId === item.id);
+          let newInventory = [...current.inventory];
+          
+          if (existingItemIdx >= 0) {
+              newInventory[existingItemIdx] = { ...newInventory[existingItemIdx], count: newInventory[existingItemIdx].count + 1 };
+          } else {
+              newInventory.push({ itemId: item.id, count: 1 });
+          }
+
+          return {
+              ...prev,
+              [studentId]: { coins: current.coins - item.price, inventory: newInventory }
+          };
+      });
+      showToast('สำเร็จ', `ซื้อ ${item.name} เรียบร้อยแล้ว`, 'success');
+      return true;
+  };
+
+  const consumeItem = (studentId: string, itemId: string) => {
+      setStudentDataExtras(prev => {
+          const current = prev[studentId];
+          if (!current) return prev;
+          
+          const existingItemIdx = current.inventory.findIndex(i => i.itemId === itemId);
+          if (existingItemIdx === -1) return prev;
+
+          let newInventory = [...current.inventory];
+          if (newInventory[existingItemIdx].count > 1) {
+              newInventory[existingItemIdx] = { ...newInventory[existingItemIdx], count: newInventory[existingItemIdx].count - 1 };
+          } else {
+              newInventory = newInventory.filter(i => i.itemId !== itemId);
+          }
+
+          return {
+              ...prev,
+              [studentId]: { ...current, inventory: newInventory }
+          };
+      });
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser, login, logout, isLoading, refreshData,
@@ -490,6 +630,8 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       healthRecords, updateHealthRecord, getLatestHealthRecord,
       announcements, addAnnouncement,
       quizzes, addQuiz, deleteQuiz, quizResults, submitQuiz,
+      questProgress, updateQuestProgress, getTodayQuests,
+      studentDataExtras, buyItem, consumeItem, addCoins,
       toasts, showToast, removeToast
     }}>
       {children}

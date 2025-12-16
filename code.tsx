@@ -3,7 +3,7 @@
 // =======================================================
 //  CLASSROOM MANAGEMENT SYSTEM - MASTER BACKEND
 //  Version: Final Production (JS)
-//  Updated: Telegram Notification Only (No Chatbot)
+//  Updated: Telegram Notification with Classroom info
 // =======================================================
 
 // --- 1. CONFIGURATION (ตั้งค่า) ---
@@ -443,7 +443,24 @@ function markAttendanceBulk(payloadArray) {
   if (payloadArray.length > 0) {
      const pCount = payloadArray.filter(p => String(p.status).toLowerCase().includes('present')).length;
      const lCount = payloadArray.filter(p => String(p.status).toLowerCase().includes('late')).length;
-     sendTelegramMessage(`⏱ <b>สรุปเวลาเรียน (${payloadArray[0].date})</b>\n✅ มา: ${pCount}\n⚠️ สาย: ${lCount}\n❌ ขาด: ${payloadArray.length - pCount - lCount}`);
+     const mCount = payloadArray.length - pCount - lCount;
+
+     // ค้นหาห้องเรียนจากนักเรียนคนแรกใน list
+     let classroomInfo = "";
+     try {
+        const students = getDataFromSheet('Students');
+        const sampleId = String(payloadArray[0].studentId);
+        // หาข้อมูลนักเรียนจาก id
+        const student = students.find(s => String(s.id) === sampleId || String(s.studentId) === sampleId);
+        if (student && student.classroom) {
+             // ลบ ' ออกถ้ามี
+             classroomInfo = `\n🏫 <b>ห้อง: ${student.classroom.replace(/^'/, '')}</b>`;
+        }
+     } catch(e) {
+        // กรณีหาไม่เจอหรือไม่สามารถดึงข้อมูลได้ ให้ข้ามการแสดงห้อง
+     }
+
+     sendTelegramMessage(`⏱ <b>สรุปเวลาเรียน (${payloadArray[0].date})</b>${classroomInfo}\n✅ มา: ${pCount}\n⚠️ สาย: ${lCount}\n❌ ขาด: ${mCount}`);
   }
   return { status: 'success' };
 }
